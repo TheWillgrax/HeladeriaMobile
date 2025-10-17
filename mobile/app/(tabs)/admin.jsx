@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { orderApi, catalogApi, adminApi } from "@/services/api";
 import { COLORS } from "@/constants/colors";
@@ -21,6 +23,7 @@ const PRODUCT_FORM_INITIAL = {
   stock: "0",
   categoryId: null,
   active: true,
+  imageUpload: null,
 };
 
 const USER_FORM_INITIAL = {
@@ -57,6 +60,7 @@ export default function AdminScreen() {
   const [productForm, setProductForm] = useState(PRODUCT_FORM_INITIAL);
   const [editingProduct, setEditingProduct] = useState(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [productImageMode, setProductImageMode] = useState("url");
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [userFormVisible, setUserFormVisible] = useState(false);
   const [userForm, setUserForm] = useState(USER_FORM_INITIAL);
@@ -217,6 +221,7 @@ export default function AdminScreen() {
       ...PRODUCT_FORM_INITIAL,
       categoryId: categories[0] ? String(categories[0].id) : null,
     });
+    setProductImageMode("url");
     setProductFormVisible(true);
   };
 
@@ -230,7 +235,9 @@ export default function AdminScreen() {
       stock: product.stock != null ? String(product.stock) : "0",
       categoryId: product.category_id != null ? String(product.category_id) : null,
       active: !!product.active,
+      imageUpload: null,
     });
+    setProductImageMode("url");
     setProductFormVisible(true);
   };
 
@@ -241,10 +248,57 @@ export default function AdminScreen() {
       ...PRODUCT_FORM_INITIAL,
       categoryId: categories[0] ? String(categories[0].id) : null,
     });
+    setProductImageMode("url");
   };
 
   const handleProductFormChange = (field, value) => {
     setProductForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePickProductImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== "granted") {
+        Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería para seleccionar imágenes");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert("No se pudo obtener la imagen", "Intenta nuevamente con otro archivo");
+        return;
+      }
+
+      const mimeType = asset.mimeType || "image/jpeg";
+      const filename = asset.fileName || `producto-${Date.now()}.jpg`;
+      setProductForm((prev) => ({
+        ...prev,
+        imageUpload: {
+          base64: asset.base64,
+          mimeType,
+          filename,
+          previewUri: asset.uri,
+        },
+        imageUrl: "",
+      }));
+      setProductImageMode("upload");
+    } catch (error) {
+      Alert.alert("Error", "No se pudo seleccionar la imagen");
+    }
+  };
+
+  const handleRemoveProductImage = () => {
+    setProductForm((prev) => ({ ...prev, imageUpload: null }));
   };
 
   const handleSubmitProduct = async () => {
@@ -263,15 +317,28 @@ export default function AdminScreen() {
       return;
     }
 
+    if (productImageMode === "upload" && !productForm.imageUpload) {
+      Alert.alert("Falta imagen", "Selecciona una imagen para subir");
+      return;
+    }
+
     const payload = {
       name: productForm.name.trim(),
       description: productForm.description.trim(),
       price: Number(productForm.price),
-      imageUrl: productForm.imageUrl.trim(),
+      imageUrl: productImageMode === "url" ? productForm.imageUrl.trim() : "",
       stock: Number(productForm.stock || 0),
       categoryId: Number(productForm.categoryId),
       active: productForm.active ? 1 : 0,
     };
+
+    if (productImageMode === "upload" && productForm.imageUpload) {
+      payload.imageUpload = {
+        filename: productForm.imageUpload.filename,
+        mimeType: productForm.imageUpload.mimeType,
+        base64: productForm.imageUpload.base64,
+      };
+    }
 
     try {
       setSavingProduct(true);
@@ -520,15 +587,69 @@ export default function AdminScreen() {
               </View>
 
               <View style={styles.formRow}>
-                <Text style={styles.inputLabel}>Imagen (URL)</Text>
-                <TextInput
-                  value={productForm.imageUrl}
-                  onChangeText={(text) => handleProductFormChange("imageUrl", text)}
-                  style={styles.input}
-                  placeholder="https://..."
-                  placeholderTextColor={COLORS.textLight}
-                  autoCapitalize="none"
-                />
+                <Text style={styles.inputLabel}>Imagen</Text>
+                <View style={styles.modeSwitchRow}>
+                  <TouchableOpacity
+                    style={[styles.modeSwitchButton, productImageMode === "url" && styles.modeSwitchButtonActive]}
+                    onPress={() => {
+                      setProductImageMode("url");
+                      setProductForm((prev) => ({ ...prev, imageUpload: null }));
+                    }}
+                  >
+                    <Text
+                      style={[styles.modeSwitchText, productImageMode === "url" && styles.modeSwitchTextActive]}
+                    >
+                      Usar URL
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeSwitchButton, productImageMode === "upload" && styles.modeSwitchButtonActive]}
+                    onPress={() => {
+                      setProductImageMode("upload");
+                    }}
+                  >
+                    <Text
+                      style={[styles.modeSwitchText, productImageMode === "upload" && styles.modeSwitchTextActive]}
+                    >
+                      Subir archivo
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {productImageMode === "url" ? (
+                  <TextInput
+                    value={productForm.imageUrl}
+                    onChangeText={(text) => handleProductFormChange("imageUrl", text)}
+                    style={styles.input}
+                    placeholder="https://..."
+                    placeholderTextColor={COLORS.textLight}
+                    autoCapitalize="none"
+                  />
+                ) : (
+                  <View style={styles.uploadContainer}>
+                    {productForm.imageUpload ? (
+                      <View style={styles.uploadPreviewWrapper}>
+                        <Image
+                          source={{ uri: productForm.imageUpload.previewUri }}
+                          style={styles.uploadPreviewImage}
+                        />
+                        <Text style={styles.uploadPreviewName}>{productForm.imageUpload.filename}</Text>
+                        <View style={styles.uploadActions}>
+                          <TouchableOpacity style={styles.outlinedButton} onPress={handlePickProductImage}>
+                            <Text style={styles.outlinedButtonText}>Cambiar imagen</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={styles.linkButton} onPress={handleRemoveProductImage}>
+                            <Text style={styles.linkButtonText}>Quitar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity style={styles.outlinedButton} onPress={handlePickProductImage}>
+                        <Text style={styles.outlinedButtonText}>Seleccionar imagen</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View style={styles.formRow}>
@@ -976,6 +1097,31 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 6,
   },
+  modeSwitchRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  modeSwitchButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+  },
+  modeSwitchButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  modeSwitchText: {
+    color: COLORS.text,
+    fontWeight: "600",
+  },
+  modeSwitchTextActive: {
+    color: COLORS.white,
+  },
   formRowInline: {
     flexDirection: "row",
     gap: 12,
@@ -1026,6 +1172,47 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: COLORS.white,
+  },
+  uploadContainer: {
+    gap: 12,
+  },
+  uploadPreviewWrapper: {
+    gap: 12,
+    alignItems: "center",
+  },
+  uploadPreviewImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 16,
+    backgroundColor: COLORS.background,
+  },
+  uploadPreviewName: {
+    color: COLORS.text,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  uploadActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  outlinedButton: {
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  outlinedButtonText: {
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
+  linkButton: {
+    justifyContent: "center",
+  },
+  linkButtonText: {
+    color: COLORS.error,
+    fontWeight: "600",
   },
   toggleButton: {
     borderWidth: 1,

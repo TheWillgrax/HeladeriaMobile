@@ -51,6 +51,17 @@ router.post(
     body("description").optional(),
     body("price").isFloat({ min: 0 }),
     body("imageUrl").optional().isString(),
+    body("imageUpload")
+      .optional()
+      .custom((value) => {
+        if (typeof value !== "object" || value === null) {
+          throw new Error("Formato de imagen inválido");
+        }
+        if (typeof value.base64 !== "string" || !value.base64) {
+          throw new Error("Falta el contenido de la imagen");
+        }
+        return true;
+      }),
     body("stock").isInt({ min: 0 }),
     body("categoryId").isInt({ min: 1 }),
     body("active").optional().isInt({ min: 0, max: 1 }),
@@ -67,6 +78,17 @@ router.put(
     body("description").optional(),
     body("price").isFloat({ min: 0 }),
     body("imageUrl").optional().isString(),
+    body("imageUpload")
+      .optional()
+      .custom((value) => {
+        if (typeof value !== "object" || value === null) {
+          throw new Error("Formato de imagen inválido");
+        }
+        if (typeof value.base64 !== "string" || !value.base64) {
+          throw new Error("Falta el contenido de la imagen");
+        }
+        return true;
+      }),
     body("stock").isInt({ min: 0 }),
     body("categoryId").isInt({ min: 1 }),
     body("active").isInt({ min: 0, max: 1 }),
