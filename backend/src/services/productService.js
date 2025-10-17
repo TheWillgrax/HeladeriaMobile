@@ -61,9 +61,10 @@ export const createProduct = async ({
   categoryId,
   active = 1,
 }) => {
+  const normalisedImageUrl = imageUrl ? imageUrl : null;
   const [result] = await pool.execute(
     "INSERT INTO products (name, description, price, image_url, stock, category_id, active) VALUES (:name, :description, :price, :imageUrl, :stock, :categoryId, :active)",
-    { name, description, price, imageUrl, stock, categoryId, active }
+    { name, description, price, imageUrl: normalisedImageUrl, stock, categoryId, active }
   );
   return result.insertId;
 };
@@ -77,9 +78,10 @@ export const updateProduct = async (id, {
   categoryId,
   active,
 }) => {
+  const normalisedImageUrl = imageUrl ? imageUrl : null;
   await pool.execute(
     "UPDATE products SET name = :name, description = :description, price = :price, image_url = :imageUrl, stock = :stock, category_id = :categoryId, active = :active WHERE id = :id",
-    { id, name, description, price, imageUrl, stock, categoryId, active }
+    { id, name, description, price, imageUrl: normalisedImageUrl, stock, categoryId, active }
   );
 };
 
