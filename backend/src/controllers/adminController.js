@@ -2,9 +2,26 @@ import { validationResult } from "express-validator";
 import { getDashboardMetrics } from "../services/adminService.js";
 import { createUser, findUserByEmail, findUserById, listUsers } from "../services/userService.js";
 
-export const dashboardController = async (_req, res) => {
+const parseIntegerParam = (value, { min, max } = {}) => {
+  if (value == null) return undefined;
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (min != null && parsed < min) return undefined;
+  if (max != null && parsed > max) return undefined;
+  return parsed;
+};
+
+export const dashboardController = async (req, res) => {
   try {
-    const data = await getDashboardMetrics();
+    const filters = {
+      year: parseIntegerParam(req.query.year, { min: 2000, max: 2100 }),
+      month: parseIntegerParam(req.query.month, { min: 1, max: 12 }),
+      range: req.query.range ? String(req.query.range) : undefined,
+      from: req.query.from ? String(req.query.from) : undefined,
+      to: req.query.to ? String(req.query.to) : undefined,
+    };
+
+    const data = await getDashboardMetrics(filters);
     res.json(data);
   } catch (error) {
     console.error("Error obteniendo métricas administrativas", error);

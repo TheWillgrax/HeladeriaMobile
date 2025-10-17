@@ -30,6 +30,8 @@
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.8",
     "expo-web-browser": "~14.1.6",
+    "react-native-chart-kit": "^6.13.1",
+    "react-native-svg": "^15.8.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.3",
