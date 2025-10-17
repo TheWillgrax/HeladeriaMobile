@@ -4,20 +4,65 @@ import { pool, query } from "../config/db.js";
 
 const BCRYPT_ROUNDS = 10;
 
+const HEX_DIGEST_LENGTH_ALGORITHMS = (() => {
+  const algorithmsByLength = new Map();
+
+  for (const algorithm of crypto.getHashes()) {
+    try {
+      const hash = crypto.createHash(algorithm);
+      hash.update("compatibility-check", "utf8");
+      const digest = hash.digest("hex");
+
+      if (!/^[a-f0-9]+$/i.test(digest)) {
+        continue;
+      }
+
+      const normalizedAlgorithm = algorithm.toLowerCase();
+      const existingAlgorithms = algorithmsByLength.get(digest.length) || [];
+
+      if (!existingAlgorithms.includes(normalizedAlgorithm)) {
+        algorithmsByLength.set(digest.length, [...existingAlgorithms, normalizedAlgorithm]);
+      }
+    } catch (error) {
+      // Some algorithms (e.g. shake/cshake variants) require additional options.
+      // If they throw, we simply skip them because they are not used for legacy passwords.
+      continue;
+    }
+  }
+
+  return algorithmsByLength;
+})();
+
 const hashPassword = (password) => bcrypt.hash(password, BCRYPT_ROUNDS);
 
 const isBcryptHash = (value) =>
   typeof value === "string" && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
 
-const isHexHashOfLength = (value, length) =>
-  typeof value === "string" && value.length === length && /^[a-f0-9]+$/i.test(value);
+const isHexString = (value) => typeof value === "string" && /^[a-f0-9]+$/i.test(value);
 
-const isMd5Hash = (value) => isHexHashOfLength(value, 32);
+const getAlgorithmsForHexHash = (value) => {
+  if (!isHexString(value)) {
+    return [];
+  }
 
-const isSha1Hash = (value) => isHexHashOfLength(value, 40);
+  return HEX_DIGEST_LENGTH_ALGORITHMS.get(value.length) || [];
+};
 
 const createHash = (algorithm, value) =>
   crypto.createHash(algorithm).update(value, "utf8").digest("hex");
+
+const verifyAndUpgradeLegacyHash = async (user, password) => {
+  const algorithms = getAlgorithmsForHexHash(user.password_hash);
+
+  for (const algorithm of algorithms) {
+    if (createHash(algorithm, password) === user.password_hash.toLowerCase()) {
+      await updatePasswordHash(user.id, password);
+      return true;
+    }
+  }
+
+  return false;
+};
 
 const updatePasswordHash = async (userId, password) => {
   const passwordHash = await hashPassword(password);
@@ -72,20 +117,10 @@ export const verifyUserPassword = async (user, password) => {
     }
   }
 
-  if (isMd5Hash(user.password_hash)) {
-    if (createHash("md5", password) === user.password_hash.toLowerCase()) {
-      await updatePasswordHash(user.id, password);
-      return true;
-    }
-    return false;
-  }
+  const legacyHashIsValid = await verifyAndUpgradeLegacyHash(user, password);
 
-  if (isSha1Hash(user.password_hash)) {
-    if (createHash("sha1", password) === user.password_hash.toLowerCase()) {
-      await updatePasswordHash(user.id, password);
-      return true;
-    }
-    return false;
+  if (legacyHashIsValid) {
+    return true;
   }
 
   if (user.password_hash === password) {
