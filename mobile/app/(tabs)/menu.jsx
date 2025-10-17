@@ -11,9 +11,9 @@ import {
   RefreshControl,
 } from "react-native";
 import { catalogApi, resolveImageUrl } from "@/services/api";
-import { COLORS } from "@/constants/colors";
 import { useCart } from "@/contexts/CartContext";
 import { useLocalSearchParams } from "expo-router";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const fallbackProductImage = "https://images.unsplash.com/photo-1488900128323-21503983a07e?auto=format&fit=crop&w=600&q=60";
 
@@ -21,25 +21,6 @@ const getProductImage = (imageUrl) => {
   const resolved = resolveImageUrl(imageUrl);
   return { uri: resolved || fallbackProductImage };
 };
-
-const ProductCard = ({ product, onAdd }) => (
-  <View style={styles.productCard}>
-    <Image source={getProductImage(product.image_url)} style={styles.productImage} />
-    <View style={styles.productInfo}>
-      <Text style={styles.productName}>{product.name}</Text>
-      <Text style={styles.productCategory}>{product.category_name}</Text>
-      <Text style={styles.productDescription} numberOfLines={2}>
-        {product.description}
-      </Text>
-      <View style={styles.productFooter}>
-        <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => onAdd(product.id)}>
-          <Text style={styles.addButtonText}>Añadir</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
-);
 
 export default function MenuScreen() {
   const params = useLocalSearchParams();
@@ -52,6 +33,27 @@ export default function MenuScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const { addItem } = useCart();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  const ProductCard = ({ product, onAdd }) => (
+    <View style={styles.productCard}>
+      <Image source={getProductImage(product.image_url)} style={styles.productImage} />
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{product.name}</Text>
+        <Text style={styles.productCategory}>{product.category_name}</Text>
+        <Text style={styles.productDescription} numberOfLines={2}>
+          {product.description}
+        </Text>
+        <View style={styles.productFooter}>
+          <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
+          <TouchableOpacity style={styles.addButton} onPress={() => onAdd(product.id)}>
+            <Text style={styles.addButtonText}>Añadir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
 
   const fetchCategories = useCallback(async () => {
     const response = await catalogApi.categories();
@@ -129,7 +131,7 @@ export default function MenuScreen() {
           value={search}
           onChangeText={setSearch}
           placeholder="Buscar sabores, toppings o categorías"
-          placeholderTextColor={COLORS.textLight}
+          placeholderTextColor={colors.textLight}
           style={styles.searchInput}
           onSubmitEditing={handleSearch}
         />
@@ -161,13 +163,13 @@ export default function MenuScreen() {
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
     ),
-    [search, categories, selectedCategory, error, handleSearch]
+    [search, categories, selectedCategory, error, handleSearch, styles, colors.textLight]
   );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
@@ -185,141 +187,142 @@ export default function MenuScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: COLORS.text,
-  },
-  subtitle: {
-    color: COLORS.textLight,
-    fontSize: 14,
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    color: COLORS.text,
-  },
-  searchButton: {
-    alignSelf: "flex-start",
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  searchButtonText: {
-    color: COLORS.white,
-    fontWeight: "700",
-  },
-  categoryList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
-  },
-  categoryChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  categoryChipText: {
-    color: COLORS.text,
-    fontWeight: "600",
-  },
-  categoryChipTextActive: {
-    color: COLORS.white,
-  },
-  listContent: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-    gap: 16,
-  },
-  productCard: {
-    flexDirection: "row",
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 16,
-    gap: 16,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  productImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 16,
-    backgroundColor: COLORS.background,
-  },
-  productInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  productName: {
-    fontWeight: "700",
-    fontSize: 18,
-    color: COLORS.text,
-  },
-  productCategory: {
-    color: COLORS.accent,
-    fontWeight: "600",
-  },
-  productDescription: {
-    color: COLORS.textLight,
-    fontSize: 13,
-  },
-  productFooter: {
-    marginTop: "auto",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  productPrice: {
-    fontWeight: "700",
-    color: COLORS.primary,
-    fontSize: 16,
-  },
-  addButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  addButtonText: {
-    color: COLORS.white,
-    fontWeight: "700",
-  },
-  emptyText: {
-    textAlign: "center",
-    color: COLORS.textLight,
-    marginTop: 32,
-  },
-  error: {
-    color: COLORS.error,
-    marginTop: 8,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    header: {
+      paddingHorizontal: 20,
+      paddingTop: 24,
+      paddingBottom: 12,
+      gap: 12,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: "800",
+      color: colors.text,
+    },
+    subtitle: {
+      color: colors.textLight,
+      fontSize: 14,
+    },
+    searchInput: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.white,
+      color: colors.text,
+    },
+    searchButton: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 14,
+    },
+    searchButtonText: {
+      color: colors.white,
+      fontWeight: "700",
+    },
+    categoryList: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    categoryChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.white,
+    },
+    categoryChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    categoryChipText: {
+      color: colors.text,
+      fontWeight: "600",
+    },
+    categoryChipTextActive: {
+      color: colors.white,
+    },
+    listContent: {
+      backgroundColor: colors.background,
+      paddingHorizontal: 16,
+      paddingBottom: 24,
+      gap: 16,
+    },
+    productCard: {
+      flexDirection: "row",
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      gap: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+    },
+    productImage: {
+      width: 120,
+      height: 120,
+      borderRadius: 16,
+      backgroundColor: colors.background,
+    },
+    productInfo: {
+      flex: 1,
+      gap: 6,
+    },
+    productName: {
+      fontWeight: "700",
+      fontSize: 18,
+      color: colors.text,
+    },
+    productCategory: {
+      color: colors.accent,
+      fontWeight: "600",
+    },
+    productDescription: {
+      color: colors.textLight,
+      fontSize: 13,
+    },
+    productFooter: {
+      marginTop: "auto",
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    productPrice: {
+      fontWeight: "700",
+      color: colors.primary,
+      fontSize: 16,
+    },
+    addButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 12,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontWeight: "700",
+    },
+    emptyText: {
+      textAlign: "center",
+      color: colors.textLight,
+      marginTop: 32,
+    },
+    error: {
+      color: colors.error,
+      marginTop: 8,
+    },
+  });

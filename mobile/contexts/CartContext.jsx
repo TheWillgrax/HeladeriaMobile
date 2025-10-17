@@ -10,10 +10,26 @@ export const CartProvider = ({ children }) => {
   const [totals, setTotals] = useState({ subtotal: 0, total: 0 });
   const [loading, setLoading] = useState(false);
 
-  const syncCartState = useCallback((payload) => {
-    setItems(payload?.items || []);
-    setTotals(payload?.totals || { subtotal: 0, total: 0 });
+  const normaliseItems = useCallback((list = []) => {
+    return list.map((item) => ({
+      ...item,
+      quantity: Number(item.quantity ?? 0),
+      unitPrice: Number(item.unitPrice ?? item.unit_price ?? 0),
+    }));
   }, []);
+
+  const computeTotals = useCallback((list = [], incomingTotals = null) => {
+    const subtotalFromItems = list.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+    const subtotal = Number(incomingTotals?.subtotal ?? subtotalFromItems ?? 0);
+    const total = Number(incomingTotals?.total ?? subtotal);
+    return { subtotal, total };
+  }, []);
+
+  const syncCartState = useCallback((payload) => {
+    const nextItems = normaliseItems(payload?.items || []);
+    setItems(nextItems);
+    setTotals(computeTotals(nextItems, payload?.totals));
+  }, [computeTotals, normaliseItems]);
 
   const fetchCart = useCallback(async () => {
     if (!token) {
@@ -74,9 +90,14 @@ export const CartProvider = ({ children }) => {
     return order;
   }, [token, fetchCart]);
 
+  const itemCount = useMemo(
+    () => items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0),
+    [items]
+  );
+
   const value = useMemo(
-    () => ({ items, totals, loading, fetchCart, addItem, updateItem, removeItem, checkout }),
-    [items, totals, loading, fetchCart, addItem, updateItem, removeItem, checkout]
+    () => ({ items, totals, itemCount, loading, fetchCart, addItem, updateItem, removeItem, checkout }),
+    [items, totals, itemCount, loading, fetchCart, addItem, updateItem, removeItem, checkout]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
