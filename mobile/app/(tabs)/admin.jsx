@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { orderApi, catalogApi, adminApi } from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
+import { formatCurrency, normaliseStatus, toNumber } from "@/utils/format";
 
 const PRODUCT_FORM_INITIAL = {
   name: "",
@@ -82,15 +83,9 @@ const ORDER_STATUS_FILTERS = [
 
 const CHART_HEIGHT = 220;
 
-const getStatusLabel = (status) =>
-  ORDER_STATUS_FILTERS.find((item) => item.key === status)?.label || status;
-
-const formatCurrency = (value) => {
-  const number = Number(value || 0);
-  if (typeof Intl === "object" && typeof Intl.NumberFormat === "function") {
-    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(number);
-  }
-  return `$${number.toFixed(2)}`;
+const getStatusLabel = (status) => {
+  const normalised = normaliseStatus(status);
+  return ORDER_STATUS_FILTERS.find((item) => item.key === normalised)?.label || status;
 };
 
 const formatPercentage = (value) => {
@@ -102,7 +97,7 @@ const formatDateTime = (value) => {
   if (!value) return "Fecha desconocida";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Fecha desconocida";
-  return date.toLocaleString("es-MX", {
+  return date.toLocaleString("es-GT", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -356,7 +351,7 @@ export default function AdminScreen() {
 
   const filteredOrders = useMemo(() => {
     if (orderStatusFilter === "all") return orders;
-    return orders.filter((order) => order.status === orderStatusFilter);
+    return orders.filter((order) => normaliseStatus(order.status) === orderStatusFilter);
   }, [orderStatusFilter, orders]);
 
   useEffect(() => {
@@ -531,14 +526,15 @@ export default function AdminScreen() {
   const handleToggleProduct = async (product) => {
     try {
       setUpdating(true);
+      const isActive = Number(product.active) === 1;
       await catalogApi.updateProduct(token, product.id, {
         name: product.name,
         description: product.description,
-        price: product.price,
+        price: toNumber(product.price),
         imageUrl: product.image_url,
-        stock: product.stock,
-        categoryId: product.category_id,
-        active: product.active ? 0 : 1,
+        stock: toNumber(product.stock),
+        categoryId: Number(product.category_id),
+        active: isActive ? 0 : 1,
       });
       await Promise.all([refreshProducts(), refreshDashboard()]);
     } catch (err) {
@@ -567,7 +563,7 @@ export default function AdminScreen() {
       imageUrl: product.image_url || "",
       stock: product.stock != null ? String(product.stock) : "0",
       categoryId: product.category_id != null ? String(product.category_id) : null,
-      active: !!product.active,
+      active: Number(product.active) === 1,
       imageUpload: null,
     });
     setProductImageMode("url");
@@ -986,9 +982,10 @@ export default function AdminScreen() {
               <Text style={styles.emptyText}>No hay pedidos con los filtros seleccionados.</Text>
             ) : (
               filteredOrders.map((order) => {
-                const orderTotal = order?.totals?.total ?? order.total ?? 0;
-                const canMarkPaid = order.status !== "paid" && order.status !== "cancelled";
-                const canCancel = order.status === "pending";
+                const orderTotal = toNumber(order?.totals?.total ?? order.total ?? 0);
+                const status = normaliseStatus(order.status);
+                const canMarkPaid = status !== "paid" && status !== "cancelled";
+                const canCancel = status === "pending";
                 return (
                   <View key={order.id} style={styles.card}>
                     <View style={styles.cardHeader}>
@@ -996,8 +993,8 @@ export default function AdminScreen() {
                         <Text style={styles.cardTitle}>Orden #{order.id}</Text>
                         <Text style={styles.cardSubtitle}>{formatDateTime(order.createdAt)}</Text>
                       </View>
-                      <Text style={[styles.badge, styles[`status${order.status}`] || styles.badge]}>
-                        {getStatusLabel(order.status)}
+                      <Text style={[styles.badge, styles[`status${status}`] || styles.badge]}>
+                        {getStatusLabel(status)}
                       </Text>
                     </View>
                     <Text style={styles.cardSubtitle}>
@@ -1233,28 +1230,30 @@ export default function AdminScreen() {
           {products.length === 0 ? (
             <Text style={styles.emptyText}>No hay productos registrados todavía.</Text>
           ) : (
-            products.map((product) => (
-              <View key={product.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View>
-                    <Text style={styles.cardTitle}>{product.name}</Text>
-                    <Text style={styles.cardSubtitle}>{product.category_name}</Text>
-                  </View>
-                  <Text style={[styles.badge, product.active ? styles.statuspaid : styles.statuscancelled]}>
-                    {product.active ? "Activo" : "Inactivo"}
-                  </Text>
-                </View>
-                <Text style={styles.cardSubtitle}>Stock: {product.stock} unidades</Text>
-                <Text style={styles.cardSubtitle}>${Number(product.price).toFixed(2)}</Text>
-                <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => openEditProduct(product)}>
-                    <Text style={styles.actionButtonText}>Editar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionButton} onPress={() => handleToggleProduct(product)}>
-                    <Text style={styles.actionButtonText}>
-                      {product.active ? "Despublicar" : "Publicar"}
+            products.map((product) => {
+              const isActive = Number(product.active) === 1;
+              return (
+                <View key={product.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View>
+                      <Text style={styles.cardTitle}>{product.name}</Text>
+                      <Text style={styles.cardSubtitle}>{product.category_name}</Text>
+                    </View>
+                    <Text style={[styles.badge, isActive ? styles.statuspaid : styles.statuscancelled]}>
+                      {isActive ? "Activo" : "Inactivo"}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
+                  <Text style={styles.cardSubtitle}>Stock: {product.stock} unidades</Text>
+                  <Text style={styles.cardSubtitle}>{formatCurrency(product.price)}</Text>
+                  <View style={styles.actionsRow}>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => openEditProduct(product)}>
+                      <Text style={styles.actionButtonText}>Editar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionButton} onPress={() => handleToggleProduct(product)}>
+                      <Text style={styles.actionButtonText}>
+                        {isActive ? "Despublicar" : "Publicar"}
+                      </Text>
+                    </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionButton, styles.dangerButton]}
                     onPress={() => handleDeleteProduct(product)}
@@ -1268,7 +1267,8 @@ export default function AdminScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-            ))
+            );
+          })
           )}
         </View>
       )}

@@ -16,6 +16,8 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
+import { formatCurrency, normaliseStatus, toNumber } from "@/utils/format";
+import SocialFloatingButtons from "@/components/SocialFloatingButtons";
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -41,6 +43,14 @@ const getProductImage = (imageUrl) => {
   const resolved = resolveImageUrl(imageUrl);
   return { uri: resolved || fallbackProductImage };
 };
+
+const ORDER_STATUS_LABELS = {
+  pending: "Pendiente",
+  paid: "Pagado",
+  cancelled: "Cancelado",
+};
+
+const getStatusLabel = (status) => ORDER_STATUS_LABELS[normaliseStatus(status)] || status || "Desconocido";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -156,7 +166,10 @@ export default function HomeScreen() {
     }
 
     const ordersCount = orders.length;
-    const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const totalSpent = orders.reduce(
+      (sum, order) => sum + toNumber(order?.totals?.total ?? order.total ?? 0),
+      0
+    );
     const itemCounter = new Map();
     orders.forEach((order) => {
       order.items?.forEach((item) => {
@@ -176,7 +189,7 @@ export default function HomeScreen() {
       {
         id: "spent",
         label: "Total disfrutado",
-        value: ordersCount ? `$${totalSpent.toFixed(2)}` : "$0.00",
+        value: ordersCount ? formatCurrency(totalSpent) : formatCurrency(0),
         description: ordersCount ? "Gracias por tu preferencia." : "Explora nuestros sabores favoritos.",
       },
       {
@@ -296,7 +309,12 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
       <Animated.View
         style={[
           styles.hero,
@@ -511,7 +529,7 @@ export default function HomeScreen() {
                     {product.description}
                   </Text>
                   <View style={styles.productFooter}>
-                    <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
+                    <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
                     <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(product.id)}>
                       <LinearGradient
                         colors={[colors.accent, colors.primary]}
@@ -540,6 +558,8 @@ export default function HomeScreen() {
                 <Text style={styles.emptyText}>Aún no has realizado pedidos. ¡Haz tu primera orden helada!</Text>
               ) : (
                 orders.map((order) => {
+                  const orderTotal = toNumber(order?.totals?.total ?? order.total ?? 0);
+                  const statusLabel = getStatusLabel(order.status);
                   const gradient = [withOpacity(colors.card, 0.95), withOpacity(colors.accent, 0.15)];
                   return (
                     <LinearGradient
@@ -551,9 +571,9 @@ export default function HomeScreen() {
                     >
                       <View style={styles.orderHeader}>
                         <Text style={styles.orderId}>Orden #{order.id}</Text>
-                        <Text style={styles.orderStatus}>{order.status}</Text>
+                        <Text style={styles.orderStatus}>{statusLabel}</Text>
                       </View>
-                      <Text style={styles.orderTotal}>Total: ${Number(order.total).toFixed(2)}</Text>
+                      <Text style={styles.orderTotal}>Total: {formatCurrency(orderTotal)}</Text>
                       <View style={styles.orderItems}>
                         {order.items?.map((item) => (
                           <Text key={item.id} style={styles.orderItem}>
@@ -569,12 +589,21 @@ export default function HomeScreen() {
           )}
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+      <SocialFloatingButtons />
+    </View>
   );
 }
 
 const createStyles = (colors) =>
   StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scroll: {
+      flex: 1,
+    },
     container: {
       paddingBottom: 40,
       backgroundColor: colors.background,

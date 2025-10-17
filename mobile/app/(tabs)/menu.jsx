@@ -15,6 +15,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
+import { formatCurrency } from "@/utils/format";
 
 const fallbackProductImage = "https://images.unsplash.com/photo-1488900128323-21503983a07e?auto=format&fit=crop&w=600&q=60";
 
@@ -47,7 +48,7 @@ export default function MenuScreen() {
           {product.description}
         </Text>
         <View style={styles.productFooter}>
-          <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
+          <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
           <TouchableOpacity style={styles.addButton} onPress={() => onAdd(product.id)}>
             <Text style={styles.addButtonText}>Añadir</Text>
           </TouchableOpacity>
