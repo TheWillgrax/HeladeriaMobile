@@ -15,14 +15,15 @@ import * as WebBrowser from "expo-web-browser";
 import { API_BASE_URL } from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
+import { formatCurrency, toNumber } from "@/utils/format";
 
 export default function CartScreen() {
   const { items, totals, loading, updateItem, removeItem, checkout } = useCart();
   const { user, token } = useAuth();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const subtotal = Number(totals?.subtotal ?? 0);
-  const total = Number(totals?.total ?? subtotal);
+  const subtotal = toNumber(totals?.subtotal ?? 0);
+  const total = toNumber(totals?.total ?? subtotal);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState(null);
   const [receiptPath, setReceiptPath] = useState(null);
@@ -32,7 +33,7 @@ export default function CartScreen() {
     <View style={styles.itemCard}>
       <View style={{ flex: 1 }}>
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemPrice}>${Number(item.unitPrice).toFixed(2)}</Text>
+        <Text style={styles.itemPrice}>{formatCurrency(item.unitPrice)}</Text>
       </View>
       <View style={styles.quantityControls}>
         <TouchableOpacity style={styles.quantityButton} onPress={onDecrease}>
@@ -96,10 +97,10 @@ export default function CartScreen() {
       setMessage(null);
       setReceiptPath(null);
       const order = await checkout();
-      const totalAmount = Number(order?.totals?.total ?? totals.total);
+      const totalAmount = toNumber(order?.totals?.total ?? totals.total);
       setReceiptPath(order?.receipt?.url || null);
       setMessage(
-        `¡Pedido #${order.orderId} recibido! Total $${totalAmount.toFixed(2)}. Descarga tu comprobante cuando quieras.`
+        `¡Pedido #${order.orderId} recibido! Total ${formatCurrency(totalAmount)}. Descarga tu comprobante cuando quieras.`
       );
     } catch (err) {
       Alert.alert("No pudimos procesar tu pedido", err.message || "Intenta de nuevo más tarde");
@@ -175,11 +176,11 @@ export default function CartScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(subtotal)}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Total</Text>
-            <Text style={styles.summaryTotal}>${total.toFixed(2)}</Text>
+            <Text style={styles.summaryTotal}>{formatCurrency(total)}</Text>
           </View>
           {message && <Text style={styles.success}>{message}</Text>}
           {receiptPath && (

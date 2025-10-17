@@ -13,6 +13,7 @@ import { orderApi } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
+import { formatCurrency, normaliseStatus, toNumber } from "@/utils/format";
 
 const STATUS_OPTIONS = [
   { key: "all", label: "Todos" },
@@ -21,21 +22,16 @@ const STATUS_OPTIONS = [
   { key: "cancelled", label: "Cancelados" },
 ];
 
-const getStatusLabel = (value) => STATUS_OPTIONS.find((option) => option.key === value)?.label || value;
-
-const formatCurrency = (value) => {
-  const number = Number(value || 0);
-  if (typeof Intl === "object" && typeof Intl.NumberFormat === "function") {
-    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(number);
-  }
-  return `$${number.toFixed(2)}`;
+const getStatusLabel = (value) => {
+  const normalised = normaliseStatus(value);
+  return STATUS_OPTIONS.find((option) => option.key === normalised)?.label || value;
 };
 
 const formatDateTime = (value) => {
   if (!value) return "Fecha desconocida";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Fecha desconocida";
-  return date.toLocaleString("es-MX", {
+  return date.toLocaleString("es-GT", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -89,24 +85,29 @@ const OrdersScreen = () => {
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === "all") return orders;
-    return orders.filter((order) => order.status === statusFilter);
+    return orders.filter((order) => normaliseStatus(order.status) === statusFilter);
   }, [orders, statusFilter]);
 
   const summaryMetrics = useMemo(() => {
     const total = orders.length;
-    const pending = orders.filter((order) => order.status === "pending").length;
-    const paid = orders.filter((order) => order.status === "paid").length;
-    const spent = orders.reduce(
-      (sum, order) => sum + Number(order?.totals?.total ?? order.total ?? 0),
-      0
-    );
+    let pending = 0;
+    let paid = 0;
+    let spent = 0;
+
+    orders.forEach((order) => {
+      const status = normaliseStatus(order.status);
+      if (status === "pending") pending += 1;
+      if (status === "paid") paid += 1;
+      spent += toNumber(order?.totals?.total ?? order.total ?? 0);
+    });
 
     return { total, pending, paid, spent };
   }, [orders]);
 
   const renderOrder = useCallback(
     ({ item }) => {
-      const total = item?.totals?.total ?? item.total ?? 0;
+      const total = toNumber(item?.totals?.total ?? item.total ?? 0);
+      const status = normaliseStatus(item.status);
       return (
         <View style={styles.orderCard}>
           <View style={styles.orderHeader}>
@@ -114,8 +115,8 @@ const OrdersScreen = () => {
               <Text style={styles.orderTitle}>Orden #{item.id}</Text>
               <Text style={styles.orderSubtitle}>{formatDateTime(item.createdAt)}</Text>
             </View>
-            <Text style={[styles.statusBadge, styles[`status${item.status}`] || styles.statusDefault]}>
-              {getStatusLabel(item.status)}
+            <Text style={[styles.statusBadge, styles[`status${status}`] || styles.statusDefault]}>
+              {getStatusLabel(status)}
             </Text>
           </View>
           <Text style={styles.orderSubtitle}>

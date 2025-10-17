@@ -1,7 +1,13 @@
 const escapePdfText = (text = "") => text.replace(/[\\()]/g, "\\$&");
 
+const currencyFormatter = new Intl.NumberFormat("es-GT", {
+  style: "currency",
+  currency: "GTQ",
+  minimumFractionDigits: 2,
+});
+
 const buildLines = ({ user, items, totals, issuedAt }) => {
-  const formatter = new Intl.DateTimeFormat("es-MX", {
+  const formatter = new Intl.DateTimeFormat("es-GT", {
     dateStyle: "long",
     timeStyle: "short",
   });
@@ -19,7 +25,7 @@ const buildLines = ({ user, items, totals, issuedAt }) => {
 
   items.forEach((item) => {
     const total = Number(item.quantity || 0) * Number(item.unitPrice ?? item.unit_price ?? 0);
-    lines.push(`${item.quantity}x ${item.name} - $${total.toFixed(2)}`);
+    lines.push(`${item.quantity}x ${item.name} - ${currencyFormatter.format(total)}`);
   });
 
   const totalItems = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -27,8 +33,8 @@ const buildLines = ({ user, items, totals, issuedAt }) => {
   lines.push(
     "",
     `Artículos totales: ${totalItems}`,
-    `Subtotal: $${totals.subtotal.toFixed(2)}`,
-    `Total: $${totals.total.toFixed(2)}`,
+    `Subtotal: ${currencyFormatter.format(totals.subtotal)}`,
+    `Total: ${currencyFormatter.format(totals.total)}`,
     "",
     "¡Gracias por tu compra!"
   );
