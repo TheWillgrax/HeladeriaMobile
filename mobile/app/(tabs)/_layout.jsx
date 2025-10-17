@@ -1,12 +1,18 @@
+import { useMemo } from "react";
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { TouchableOpacity, Text, StyleSheet } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
 import { useAuth } from "@/contexts/AuthContext";
-import { COLORS } from "@/constants/colors";
+import { useCart } from "@/contexts/CartContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const TabsLayout = () => {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const { itemCount } = useCart();
+  const { colors } = useTheme();
+
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   if (loading) return null;
 
@@ -28,24 +34,24 @@ const TabsLayout = () => {
         headerTitle: "Helados Victoria",
         headerTitleAlign: "center",
         headerStyle: {
-          backgroundColor: COLORS.primary,
+          backgroundColor: colors.primary,
         },
-        headerTintColor: COLORS.white,
+        headerTintColor: colors.white,
         headerTitleStyle: {
           fontWeight: "800",
           fontSize: 18,
         },
         headerRight: () => (
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-            <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
+            <Ionicons name="log-out-outline" size={20} color={colors.white} />
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </TouchableOpacity>
         ),
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textLight,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textLight,
         tabBarStyle: {
-          backgroundColor: COLORS.white,
-          borderTopColor: COLORS.border,
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
           paddingBottom: 8,
           paddingTop: 8,
@@ -75,7 +81,23 @@ const TabsLayout = () => {
         name="cart"
         options={{
           title: "Carrito",
-          tabBarIcon: ({ color, size }) => <Ionicons name="cart" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View style={styles.iconWrapper}>
+              <Ionicons name="cart" size={size} color={color} />
+              {itemCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{itemCount}</Text>
+                </View>
+              )}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Config",
+          tabBarIcon: ({ color, size }) => <Ionicons name="color-palette" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -91,17 +113,38 @@ const TabsLayout = () => {
 };
 export default TabsLayout;
 
-const styles = StyleSheet.create({
-  logoutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  logoutText: {
-    color: COLORS.white,
-    fontWeight: "600",
-    fontSize: 14,
-    marginLeft: 6,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    logoutButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    logoutText: {
+      color: colors.white,
+      fontWeight: "600",
+      fontSize: 14,
+      marginLeft: 6,
+    },
+    iconWrapper: {
+      position: "relative",
+    },
+    badge: {
+      position: "absolute",
+      top: -6,
+      right: -12,
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      minWidth: 20,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: {
+      color: colors.white,
+      fontSize: 10,
+      fontWeight: "700",
+    },
+  });

@@ -10,10 +10,11 @@ import {
   TextInput,
   Image,
 } from "react-native";
+// eslint-disable-next-line import/no-unresolved
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
 import { orderApi, catalogApi, adminApi } from "@/services/api";
-import { COLORS } from "@/constants/colors";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const PRODUCT_FORM_INITIAL = {
   name: "",
@@ -43,10 +44,12 @@ const TABS = [
   { key: "dashboard", label: "Resumen" },
   { key: "products", label: "Productos" },
   { key: "users", label: "Usuarios" },
+  { key: "settings", label: "Configuración" },
 ];
 
 export default function AdminScreen() {
   const { user, token } = useAuth();
+  const { colors, theme, setTheme, toggleTheme } = useTheme();
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -65,6 +68,7 @@ export default function AdminScreen() {
   const [userFormVisible, setUserFormVisible] = useState(false);
   const [userForm, setUserForm] = useState(USER_FORM_INITIAL);
   const [creatingUser, setCreatingUser] = useState(false);
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const isAdmin = user?.role === "admin";
 
@@ -292,7 +296,7 @@ export default function AdminScreen() {
         imageUrl: "",
       }));
       setProductImageMode("upload");
-    } catch (error) {
+    } catch (_error) {
       Alert.alert("Error", "No se pudo seleccionar la imagen");
     }
   };
@@ -401,7 +405,7 @@ export default function AdminScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={COLORS.primary} size="large" />
+        <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
   }
@@ -473,13 +477,13 @@ export default function AdminScreen() {
               </View>
             </>
           ) : (
-            <ActivityIndicator color={COLORS.primary} />
+            <ActivityIndicator color={colors.primary} />
           )}
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Pedidos recientes</Text>
-              {updating && <ActivityIndicator color={COLORS.primary} />}
+              {updating && <ActivityIndicator color={colors.primary} />}
             </View>
             {orders.length === 0 ? (
               <Text style={styles.emptyText}>Aún no hay pedidos registrados.</Text>
@@ -545,7 +549,7 @@ export default function AdminScreen() {
                   onChangeText={(text) => handleProductFormChange("name", text)}
                   style={styles.input}
                   placeholder="Helado artesanal"
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                 />
               </View>
 
@@ -556,7 +560,7 @@ export default function AdminScreen() {
                   onChangeText={(text) => handleProductFormChange("description", text)}
                   style={[styles.input, styles.multilineInput]}
                   placeholder="Describe los ingredientes"
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                   multiline
                 />
               </View>
@@ -570,7 +574,7 @@ export default function AdminScreen() {
                     style={styles.input}
                     keyboardType="decimal-pad"
                     placeholder="0.00"
-                    placeholderTextColor={COLORS.textLight}
+                    placeholderTextColor={colors.textLight}
                   />
                 </View>
                 <View style={styles.formColumn}>
@@ -581,7 +585,7 @@ export default function AdminScreen() {
                     style={styles.input}
                     keyboardType="number-pad"
                     placeholder="0"
-                    placeholderTextColor={COLORS.textLight}
+                    placeholderTextColor={colors.textLight}
                   />
                 </View>
               </View>
@@ -622,7 +626,7 @@ export default function AdminScreen() {
                     onChangeText={(text) => handleProductFormChange("imageUrl", text)}
                     style={styles.input}
                     placeholder="https://..."
-                    placeholderTextColor={COLORS.textLight}
+                    placeholderTextColor={colors.textLight}
                     autoCapitalize="none"
                   />
                 ) : (
@@ -693,7 +697,7 @@ export default function AdminScreen() {
                   disabled={savingProduct}
                 >
                   {savingProduct ? (
-                    <ActivityIndicator color={COLORS.white} />
+                    <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.primaryButtonText}>
                       {editingProduct ? "Guardar cambios" : "Crear producto"}
@@ -738,7 +742,7 @@ export default function AdminScreen() {
                     disabled={deletingProductId === product.id}
                   >
                     {deletingProductId === product.id ? (
-                      <ActivityIndicator color={COLORS.error} />
+                      <ActivityIndicator color={colors.error} />
                     ) : (
                       <Text style={[styles.actionButtonText, styles.dangerButtonText]}>Eliminar</Text>
                     )}
@@ -770,7 +774,7 @@ export default function AdminScreen() {
                   onChangeText={(text) => handleUserFormChange("name", text)}
                   style={styles.input}
                   placeholder="Nombre completo"
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                 />
               </View>
 
@@ -783,7 +787,7 @@ export default function AdminScreen() {
                   placeholder="usuario@ejemplo.com"
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                 />
               </View>
 
@@ -795,7 +799,7 @@ export default function AdminScreen() {
                   style={styles.input}
                   placeholder="5512345678"
                   keyboardType="phone-pad"
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                 />
               </View>
 
@@ -807,7 +811,7 @@ export default function AdminScreen() {
                   style={styles.input}
                   placeholder="Mínimo 6 caracteres"
                   secureTextEntry
-                  placeholderTextColor={COLORS.textLight}
+                  placeholderTextColor={colors.textLight}
                 />
               </View>
 
@@ -836,7 +840,7 @@ export default function AdminScreen() {
                   disabled={creatingUser}
                 >
                   {creatingUser ? (
-                    <ActivityIndicator color={COLORS.white} />
+                    <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.primaryButtonText}>Crear usuario</Text>
                   )}
@@ -874,15 +878,56 @@ export default function AdminScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {activeTab === "settings" && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferencias de apariencia</Text>
+          <Text style={styles.sectionDescription}>
+            Elige el modo de color que prefieras. El cambio se aplicará tanto al panel administrativo como a
+            la app del cliente.
+          </Text>
+
+          <View style={styles.themeOptions}>
+            {[{ key: "light", label: "Modo claro", description: "Ideal para ambientes iluminados." },
+              { key: "dark", label: "Modo oscuro", description: "Protege tu vista en entornos con poca luz." }].map(
+              (option) => {
+                const isActive = theme === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.themeOption, isActive && styles.themeOptionActive]}
+                    onPress={() => setTheme(option.key)}
+                  >
+                    <Text style={[styles.themeOptionTitle, isActive && styles.themeOptionTitleActive]}>
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={[styles.themeOptionDescription, isActive && styles.themeOptionDescriptionActive]}
+                    >
+                      {option.description}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+            )}
+          </View>
+
+          <TouchableOpacity style={styles.toggleThemeButton} onPress={toggleTheme}>
+            <Text style={styles.toggleThemeButtonText}>
+              Cambiar a modo {theme === "light" ? "oscuro" : "claro"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors) => StyleSheet.create({
   container: {
     padding: 20,
     gap: 16,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     paddingBottom: 48,
   },
   centered: {
@@ -890,26 +935,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   title: {
     fontSize: 24,
     fontWeight: "800",
-    color: COLORS.text,
+    color: colors.text,
   },
   subtitle: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     marginTop: 6,
     fontSize: 14,
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: COLORS.white,
+    backgroundColor: colors.white,
     borderRadius: 16,
     padding: 6,
     marginTop: 20,
     gap: 6,
-    shadowColor: COLORS.shadow,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -923,18 +968,24 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   tabButtonActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
   },
   tabButtonText: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     fontWeight: "600",
   },
   tabButtonTextActive: {
-    color: COLORS.white,
+    color: colors.white,
   },
   section: {
     gap: 12,
     marginTop: 24,
+  },
+  sectionDescription: {
+    color: colors.textLight,
+    fontSize: 14,
+    marginBottom: 12,
+    lineHeight: 20,
   },
   sectionHeader: {
     flexDirection: "row",
@@ -944,7 +995,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: COLORS.text,
+    color: colors.text,
   },
   metricsGrid: {
     flexDirection: "row",
@@ -953,30 +1004,30 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flexBasis: "48%",
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
-    shadowColor: COLORS.shadow,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.06,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
   metricLabel: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     fontSize: 13,
     marginBottom: 4,
   },
   metricValue: {
-    color: COLORS.text,
+    color: colors.text,
     fontSize: 20,
     fontWeight: "700",
   },
   card: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 16,
-    shadowColor: COLORS.shadow,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.08,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
@@ -991,17 +1042,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontWeight: "700",
     fontSize: 18,
-    color: COLORS.text,
+    color: colors.text,
   },
   cardSubtitle: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     fontSize: 14,
   },
   inlineCard: {
-    backgroundColor: COLORS.card,
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
-    shadowColor: COLORS.shadow,
+    shadowColor: colors.shadow,
     shadowOpacity: 0.05,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
@@ -1009,17 +1060,17 @@ const styles = StyleSheet.create({
   },
   inlineCardTitle: {
     fontWeight: "700",
-    color: COLORS.text,
+    color: colors.text,
   },
   inlineCardSubtitle: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     marginTop: 4,
   },
   orderItems: {
     gap: 4,
   },
   orderItem: {
-    color: COLORS.text,
+    color: colors.text,
   },
   actionsRow: {
     flexDirection: "row",
@@ -1028,17 +1079,17 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: 14,
     alignItems: "center",
   },
   actionButtonText: {
-    color: COLORS.white,
+    color: colors.white,
     fontWeight: "700",
   },
   primaryButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1046,13 +1097,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   primaryButtonText: {
-    color: COLORS.white,
+    color: colors.white,
     fontWeight: "700",
   },
-  secondaryButton: {
-    backgroundColor: COLORS.card,
+  themeOptions: {
+    gap: 12,
+  },
+  themeOption: {
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 6,
+  },
+  themeOptionActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  themeOptionTitle: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  themeOptionTitleActive: {
+    color: colors.white,
+  },
+  themeOptionDescription: {
+    color: colors.textLight,
+    fontSize: 13,
+  },
+  themeOptionDescriptionActive: {
+    color: colors.white,
+  },
+  secondaryButton: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 14,
     paddingHorizontal: 18,
     paddingVertical: 10,
@@ -1060,38 +1141,49 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   secondaryButtonText: {
-    color: COLORS.text,
+    color: colors.text,
     fontWeight: "600",
   },
+  toggleThemeButton: {
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  toggleThemeButtonText: {
+    color: colors.white,
+    fontWeight: "700",
+  },
   dangerButton: {
-    backgroundColor: COLORS.errorLight,
+    backgroundColor: colors.errorLight,
   },
   dangerButtonText: {
-    color: COLORS.error,
+    color: colors.error,
   },
   badge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
     textTransform: "capitalize",
-    color: COLORS.white,
+    color: colors.white,
     fontWeight: "700",
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
   },
   statuspaid: {
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.success,
   },
   statuspending: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.primary,
   },
   statuscancelled: {
-    backgroundColor: COLORS.error,
+    backgroundColor: colors.error,
   },
   emptyText: {
-    color: COLORS.textLight,
+    color: colors.textLight,
   },
   error: {
-    color: COLORS.error,
+    color: colors.error,
   },
   formRow: {
     marginTop: 12,
@@ -1107,20 +1199,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignItems: "center",
-    backgroundColor: COLORS.white,
+    backgroundColor: colors.white,
   },
   modeSwitchButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   modeSwitchText: {
-    color: COLORS.text,
+    color: colors.text,
     fontWeight: "600",
   },
   modeSwitchTextActive: {
-    color: COLORS.white,
+    color: colors.white,
   },
   formRowInline: {
     flexDirection: "row",
@@ -1134,16 +1226,16 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: COLORS.text,
+    color: colors.text,
   },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: COLORS.white,
-    color: COLORS.text,
+    backgroundColor: colors.white,
+    color: colors.text,
   },
   multilineInput: {
     minHeight: 80,
@@ -1159,19 +1251,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   chipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   chipText: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     fontWeight: "600",
   },
   chipTextActive: {
-    color: COLORS.white,
+    color: colors.white,
   },
   uploadContainer: {
     gap: 12,
@@ -1184,10 +1276,10 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 16,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   uploadPreviewName: {
-    color: COLORS.text,
+    color: colors.text,
     fontWeight: "600",
     textAlign: "center",
   },
@@ -1197,40 +1289,40 @@ const styles = StyleSheet.create({
   },
   outlinedButton: {
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 14,
     alignItems: "center",
   },
   outlinedButtonText: {
-    color: COLORS.primary,
+    color: colors.primary,
     fontWeight: "600",
   },
   linkButton: {
     justifyContent: "center",
   },
   linkButtonText: {
-    color: COLORS.error,
+    color: colors.error,
     fontWeight: "600",
   },
   toggleButton: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 14,
     paddingVertical: 10,
     alignItems: "center",
   },
   toggleButtonActive: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
+    backgroundColor: colors.success,
+    borderColor: colors.success,
   },
   toggleButtonText: {
-    color: COLORS.textLight,
+    color: colors.textLight,
     fontWeight: "600",
   },
   toggleButtonTextActive: {
-    color: COLORS.white,
+    color: colors.white,
   },
   formActions: {
     flexDirection: "row",
@@ -1243,13 +1335,13 @@ const styles = StyleSheet.create({
   refreshButton: {
     marginTop: 12,
     alignSelf: "flex-start",
-    backgroundColor: COLORS.accent,
+    backgroundColor: colors.accent,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 14,
   },
   refreshButtonText: {
-    color: COLORS.white,
+    color: colors.white,
     fontWeight: "700",
   },
 });

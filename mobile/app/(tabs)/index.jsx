@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { catalogApi, orderApi, resolveImageUrl } from "@/services/api";
-import { COLORS } from "@/constants/colors";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const heroImage = {
   uri: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=500&q=60",
@@ -20,6 +20,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { addItem } = useCart();
   const { token, user } = useAuth();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -92,7 +94,7 @@ export default function HomeScreen() {
 
       {loading && (
         <View style={styles.loadingWrapper}>
-          <ActivityIndicator color={COLORS.primary} size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       )}
 
@@ -164,208 +166,209 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 32,
-    backgroundColor: COLORS.background,
-  },
-  hero: {
-    backgroundColor: COLORS.primary,
-    margin: 20,
-    borderRadius: 28,
-    padding: 24,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  heroText: {
-    flex: 1,
-    gap: 12,
-  },
-  heroTag: {
-    color: COLORS.white,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: COLORS.white,
-    lineHeight: 34,
-  },
-  heroSubtitle: {
-    color: COLORS.white,
-    opacity: 0.85,
-    fontSize: 14,
-  },
-  heroActions: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
-  heroImage: {
-    width: 140,
-    height: 140,
-    marginLeft: 16,
-  },
-  primaryButton: {
-    backgroundColor: COLORS.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-  },
-  primaryButtonText: {
-    color: COLORS.white,
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: COLORS.white,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-  },
-  secondaryButtonText: {
-    color: COLORS.white,
-    fontWeight: "600",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.text,
-    marginHorizontal: 20,
-    marginTop: 24,
-    marginBottom: 12,
-  },
-  categoryRow: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  categoryCard: {
-    backgroundColor: COLORS.card,
-    padding: 16,
-    borderRadius: 18,
-    width: 200,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  categoryName: {
-    fontWeight: "700",
-    fontSize: 16,
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  categoryDescription: {
-    color: COLORS.textLight,
-    fontSize: 13,
-  },
-  productRow: {
-    paddingHorizontal: 16,
-    gap: 16,
-  },
-  productCard: {
-    width: 220,
-    backgroundColor: COLORS.card,
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  productImage: {
-    width: "100%",
-    height: 120,
-    borderRadius: 16,
-    marginBottom: 12,
-    backgroundColor: COLORS.background,
-  },
-  productName: {
-    fontWeight: "700",
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  productDescription: {
-    color: COLORS.textLight,
-    fontSize: 13,
-    marginTop: 6,
-  },
-  productFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  productPrice: {
-    fontWeight: "700",
-    color: COLORS.primary,
-    fontSize: 16,
-  },
-  addButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-  },
-  addButtonText: {
-    color: COLORS.white,
-    fontWeight: "600",
-  },
-  ordersSection: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  emptyText: {
-    color: COLORS.textLight,
-    marginHorizontal: 20,
-    fontSize: 14,
-  },
-  orderCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 18,
-    padding: 16,
-    shadowColor: COLORS.shadow,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  orderId: {
-    fontWeight: "700",
-    color: COLORS.text,
-  },
-  orderStatus: {
-    fontWeight: "600",
-    color: COLORS.accent,
-    textTransform: "capitalize",
-  },
-  orderTotal: {
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  orderItems: {
-    gap: 4,
-  },
-  orderItem: {
-    color: COLORS.textLight,
-  },
-  loadingWrapper: {
-    marginVertical: 40,
-    alignItems: "center",
-  },
-  error: {
-    color: COLORS.error,
-    textAlign: "center",
-    marginTop: 12,
-  },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: {
+      paddingBottom: 32,
+      backgroundColor: colors.background,
+    },
+    hero: {
+      backgroundColor: colors.primary,
+      margin: 20,
+      borderRadius: 28,
+      padding: 24,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    heroText: {
+      flex: 1,
+      gap: 12,
+    },
+    heroTag: {
+      color: colors.white,
+      fontWeight: "600",
+      textTransform: "uppercase",
+    },
+    heroTitle: {
+      fontSize: 28,
+      fontWeight: "800",
+      color: colors.white,
+      lineHeight: 34,
+    },
+    heroSubtitle: {
+      color: colors.white,
+      opacity: 0.85,
+      fontSize: 14,
+    },
+    heroActions: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 12,
+    },
+    heroImage: {
+      width: 140,
+      height: 140,
+      marginLeft: 16,
+    },
+    primaryButton: {
+      backgroundColor: colors.accent,
+      paddingVertical: 12,
+      paddingHorizontal: 18,
+      borderRadius: 14,
+    },
+    primaryButtonText: {
+      color: colors.white,
+      fontWeight: "700",
+    },
+    secondaryButton: {
+      borderWidth: 1,
+      borderColor: colors.white,
+      paddingVertical: 12,
+      paddingHorizontal: 18,
+      borderRadius: 14,
+    },
+    secondaryButtonText: {
+      color: colors.white,
+      fontWeight: "600",
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.text,
+      marginHorizontal: 20,
+      marginTop: 24,
+      marginBottom: 12,
+    },
+    categoryRow: {
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    categoryCard: {
+      backgroundColor: colors.card,
+      padding: 16,
+      borderRadius: 18,
+      width: 200,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
+    },
+    categoryName: {
+      fontWeight: "700",
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: 6,
+    },
+    categoryDescription: {
+      color: colors.textLight,
+      fontSize: 13,
+    },
+    productRow: {
+      paddingHorizontal: 16,
+      gap: 16,
+    },
+    productCard: {
+      width: 220,
+      backgroundColor: colors.card,
+      borderRadius: 20,
+      padding: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 6,
+    },
+    productImage: {
+      width: "100%",
+      height: 120,
+      borderRadius: 16,
+      marginBottom: 12,
+      backgroundColor: colors.background,
+    },
+    productName: {
+      fontWeight: "700",
+      fontSize: 16,
+      color: colors.text,
+    },
+    productDescription: {
+      color: colors.textLight,
+      fontSize: 13,
+      marginTop: 6,
+    },
+    productFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: 16,
+    },
+    productPrice: {
+      fontWeight: "700",
+      color: colors.primary,
+      fontSize: 16,
+    },
+    addButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+    },
+    addButtonText: {
+      color: colors.white,
+      fontWeight: "600",
+    },
+    ordersSection: {
+      marginTop: 24,
+      paddingHorizontal: 20,
+      gap: 12,
+    },
+    emptyText: {
+      color: colors.textLight,
+      marginHorizontal: 20,
+      fontSize: 14,
+    },
+    orderCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.06,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+    },
+    orderHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    },
+    orderId: {
+      fontWeight: "700",
+      color: colors.text,
+    },
+    orderStatus: {
+      fontWeight: "600",
+      color: colors.accent,
+      textTransform: "capitalize",
+    },
+    orderTotal: {
+      fontWeight: "600",
+      color: colors.text,
+      marginBottom: 6,
+    },
+    orderItems: {
+      gap: 4,
+    },
+    orderItem: {
+      color: colors.textLight,
+    },
+    loadingWrapper: {
+      marginVertical: 40,
+      alignItems: "center",
+    },
+    error: {
+      color: colors.error,
+      textAlign: "center",
+      marginTop: 12,
+    },
+  });
