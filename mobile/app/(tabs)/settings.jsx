@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
+import { LinearGradient } from "expo-linear-gradient";
 
 const THEME_OPTIONS = [
   {
@@ -23,6 +24,18 @@ export default function SettingsScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Configuración</Text>
       <Text style={styles.subtitle}>Personaliza cómo se ve Helados Victoria en tu dispositivo.</Text>
+
+      <LinearGradient
+        colors={[colors.surface || colors.background, colors.card]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.heroBanner}
+      >
+        <Text style={styles.heroTitle}>Tu experiencia, a tu estilo</Text>
+        <Text style={styles.heroDescription}>
+          Alterna entre tonos claros y oscuros para disfrutar de la carta en cualquier momento del día.
+        </Text>
+      </LinearGradient>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Apariencia</Text>
@@ -77,8 +90,31 @@ const createStyles = (colors) =>
       fontSize: 14,
       lineHeight: 20,
     },
+    heroBanner: {
+      borderRadius: 24,
+      padding: 20,
+      marginTop: 16,
+      gap: 8,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    heroTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    heroDescription: {
+      color: colors.textLight,
+      lineHeight: 20,
+    },
     section: {
       gap: 16,
+      marginTop: 24,
     },
     sectionTitle: {
       fontSize: 20,
@@ -109,6 +145,8 @@ const createStyles = (colors) =>
     optionCardActive: {
       borderColor: colors.primary,
       backgroundColor: colors.primary,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
     },
     optionTitle: {
       fontSize: 16,
@@ -130,6 +168,11 @@ const createStyles = (colors) =>
       borderRadius: 14,
       paddingVertical: 12,
       alignItems: "center",
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
     },
     toggleButtonText: {
       color: colors.white,

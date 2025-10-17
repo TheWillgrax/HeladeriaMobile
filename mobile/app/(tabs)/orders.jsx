@@ -12,6 +12,7 @@ import { useFocusEffect } from "expo-router";
 import { orderApi } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { LinearGradient } from "expo-linear-gradient";
 
 const STATUS_OPTIONS = [
   { key: "all", label: "Todos" },
@@ -91,6 +92,18 @@ const OrdersScreen = () => {
     return orders.filter((order) => order.status === statusFilter);
   }, [orders, statusFilter]);
 
+  const summaryMetrics = useMemo(() => {
+    const total = orders.length;
+    const pending = orders.filter((order) => order.status === "pending").length;
+    const paid = orders.filter((order) => order.status === "paid").length;
+    const spent = orders.reduce(
+      (sum, order) => sum + Number(order?.totals?.total ?? order.total ?? 0),
+      0
+    );
+
+    return { total, pending, paid, spent };
+  }, [orders]);
+
   const renderOrder = useCallback(
     ({ item }) => {
       const total = item?.totals?.total ?? item.total ?? 0;
@@ -129,6 +142,37 @@ const OrdersScreen = () => {
       <Text style={styles.subtitle}>
         Consulta el estado y el detalle de cada compra realizada en Helados Victoria.
       </Text>
+
+      <View style={styles.summaryGrid}>
+        <LinearGradient
+          colors={[colors.surface || colors.background, colors.card]}
+          style={styles.summaryCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.summaryValue}>{summaryMetrics.total}</Text>
+          <Text style={styles.summaryLabel}>Pedidos totales</Text>
+        </LinearGradient>
+        <LinearGradient
+          colors={[colors.primary, colors.accent]}
+          style={[styles.summaryCard, styles.summaryCardAccent]}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={[styles.summaryValue, styles.summaryValueOnDark]}>{summaryMetrics.pending}</Text>
+          <Text style={[styles.summaryLabel, styles.summaryLabelOnDark]}>Pendientes</Text>
+          <Text style={[styles.summaryNote, styles.summaryLabelOnDark]}>Pagados: {summaryMetrics.paid}</Text>
+        </LinearGradient>
+        <LinearGradient
+          colors={[colors.card, colors.surface || colors.background]}
+          style={styles.summaryCard}
+          start={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.summaryValue}>{formatCurrency(summaryMetrics.spent)}</Text>
+          <Text style={styles.summaryLabel}>Total gastado</Text>
+        </LinearGradient>
+      </View>
 
       <View style={styles.filterRow}>
         {STATUS_OPTIONS.map((option) => {
@@ -199,11 +243,55 @@ const createStyles = (colors) =>
       fontSize: 14,
       lineHeight: 20,
     },
+    summaryGrid: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 8,
+    },
+    summaryCard: {
+      flex: 1,
+      borderRadius: 20,
+      paddingVertical: 16,
+      paddingHorizontal: 18,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    summaryCardAccent: {
+      borderColor: "transparent",
+    },
+    summaryValue: {
+      fontSize: 20,
+      fontWeight: "800",
+      color: colors.text,
+    },
+    summaryValueOnDark: {
+      color: colors.white,
+    },
+    summaryLabel: {
+      marginTop: 4,
+      color: colors.textLight,
+      fontWeight: "600",
+    },
+    summaryLabelOnDark: {
+      color: colors.white,
+      opacity: 0.85,
+    },
+    summaryNote: {
+      marginTop: 2,
+      fontSize: 12,
+      color: colors.textLight,
+    },
     filterRow: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: 8,
-      marginTop: 4,
+      marginTop: 12,
     },
     filterChip: {
       paddingHorizontal: 14,
@@ -211,7 +299,12 @@ const createStyles = (colors) =>
       borderRadius: 16,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.card,
+      backgroundColor: colors.surface || colors.card,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
     },
     filterChipActive: {
       backgroundColor: colors.primary,
@@ -246,6 +339,8 @@ const createStyles = (colors) =>
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 2 },
       elevation: 3,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     orderHeader: {
       flexDirection: "row",

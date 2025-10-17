@@ -14,6 +14,7 @@ import { catalogApi, resolveImageUrl } from "@/services/api";
 import { useCart } from "@/contexts/CartContext";
 import { useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
+import { LinearGradient } from "expo-linear-gradient";
 
 const fallbackProductImage = "https://images.unsplash.com/photo-1488900128323-21503983a07e?auto=format&fit=crop&w=600&q=60";
 
@@ -122,48 +123,67 @@ export default function MenuScreen() {
 
   const header = useMemo(
     () => (
-      <View style={styles.header}>
-        <Text style={styles.title}>Nuestra carta</Text>
-        <Text style={styles.subtitle}>
-          Paletas artesanales, helados cremosos y malteadas preparadas al momento.
-        </Text>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Buscar sabores, toppings o categorías"
-          placeholderTextColor={colors.textLight}
-          style={styles.searchInput}
-          onSubmitEditing={handleSearch}
-        />
-        <View style={styles.categoryList}>
-          <TouchableOpacity
-            style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>Todos</Text>
-          </TouchableOpacity>
-          {categories.map((category) => {
-            const isActive = selectedCategory === category.id;
-            return (
+      <View style={styles.headerWrapper}>
+        <LinearGradient
+          colors={[colors.surface || colors.background, colors.card]}
+          style={styles.heroCard}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title}>Nuestra carta</Text>
+            <Text style={styles.subtitle}>
+              Paletas artesanales, helados cremosos y malteadas preparadas al momento.
+            </Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{products.length}</Text>
+                <Text style={styles.statLabel}>Sabores disponibles</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{categories.length}</Text>
+                <Text style={styles.statLabel}>Categorías activas</Text>
+              </View>
+            </View>
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar sabores, toppings o categorías"
+              placeholderTextColor={colors.textLight}
+              style={styles.searchInput}
+              onSubmitEditing={handleSearch}
+            />
+            <View style={styles.categoryList}>
               <TouchableOpacity
-                key={category.id}
-                style={[styles.categoryChip, isActive && styles.categoryChipActive]}
-                onPress={() => setSelectedCategory(category.id)}
+                style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
+                onPress={() => setSelectedCategory(null)}
               >
-                <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
-                  {category.name}
-                </Text>
+                <Text style={[styles.categoryChipText, !selectedCategory && styles.categoryChipTextActive]}>Todos</Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
-        <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-          <Text style={styles.searchButtonText}>Buscar</Text>
-        </TouchableOpacity>
-        {error && <Text style={styles.error}>{error}</Text>}
+              {categories.map((category) => {
+                const isActive = selectedCategory === category.id;
+                return (
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                    onPress={() => setSelectedCategory(category.id)}
+                  >
+                    <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
+                      {category.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
+              <Text style={styles.searchButtonText}>Buscar</Text>
+            </TouchableOpacity>
+            {error && <Text style={styles.error}>{error}</Text>}
+          </View>
+        </LinearGradient>
       </View>
     ),
-    [search, categories, selectedCategory, error, handleSearch, styles, colors.textLight]
+    [search, categories, selectedCategory, error, handleSearch, styles, colors.textLight, products.length]
   );
 
   if (loading) {
@@ -195,11 +215,24 @@ const createStyles = (colors) =>
       justifyContent: "center",
       backgroundColor: colors.background,
     },
-    header: {
-      paddingHorizontal: 20,
+    headerWrapper: {
+      paddingHorizontal: 16,
       paddingTop: 24,
       paddingBottom: 12,
-      gap: 12,
+    },
+    heroCard: {
+      borderRadius: 28,
+      padding: 20,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    header: {
+      gap: 16,
     },
     title: {
       fontSize: 24,
@@ -210,21 +243,59 @@ const createStyles = (colors) =>
       color: colors.textLight,
       fontSize: 14,
     },
+    statsRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 2,
+    },
+    statValue: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: colors.primary,
+    },
+    statLabel: {
+      color: colors.textLight,
+      marginTop: 2,
+      fontSize: 12,
+    },
     searchInput: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 16,
+      borderRadius: 18,
       paddingHorizontal: 16,
       paddingVertical: 12,
       backgroundColor: colors.white,
       color: colors.text,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
     },
     searchButton: {
       alignSelf: "flex-start",
       backgroundColor: colors.primary,
       paddingHorizontal: 20,
       paddingVertical: 10,
-      borderRadius: 14,
+      borderRadius: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
     },
     searchButtonText: {
       color: colors.white,
@@ -241,7 +312,12 @@ const createStyles = (colors) =>
       borderRadius: 20,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.white,
+      backgroundColor: colors.surface || colors.white,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.04,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 1,
     },
     categoryChipActive: {
       backgroundColor: colors.primary,
@@ -257,7 +333,7 @@ const createStyles = (colors) =>
     listContent: {
       backgroundColor: colors.background,
       paddingHorizontal: 16,
-      paddingBottom: 24,
+      paddingBottom: 36,
       gap: 16,
     },
     productCard: {
@@ -271,6 +347,8 @@ const createStyles = (colors) =>
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 4 },
       elevation: 3,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     productImage: {
       width: 120,
@@ -308,9 +386,14 @@ const createStyles = (colors) =>
     },
     addButton: {
       backgroundColor: colors.primary,
-      paddingHorizontal: 16,
+      paddingHorizontal: 18,
       paddingVertical: 10,
-      borderRadius: 12,
+      borderRadius: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 3,
     },
     addButtonText: {
       color: colors.white,

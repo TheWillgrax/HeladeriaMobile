@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as WebBrowser from "expo-web-browser";
 import { API_BASE_URL } from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function CartScreen() {
   const { items, totals, loading, updateItem, removeItem, checkout } = useCart();
@@ -136,6 +137,12 @@ export default function CartScreen() {
 
   return (
     <View style={styles.container}>
+      <LinearGradient
+        colors={[colors.surface || colors.primary, colors.background]}
+        style={styles.heroGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
       <View style={styles.header}>
         <Text style={styles.title}>Tu carrito</Text>
         <Text style={styles.subtitle}>
@@ -156,35 +163,43 @@ export default function CartScreen() {
         )}
         ListEmptyComponent={<Text style={styles.emptyText}>Tu carrito está vacío por ahora.</Text>}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={<View style={styles.listInset} />}
       />
 
-      <View style={styles.summary}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Subtotal</Text>
-          <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total</Text>
-          <Text style={styles.summaryTotal}>${total.toFixed(2)}</Text>
-        </View>
-        {message && <Text style={styles.success}>{message}</Text>}
-        {receiptPath && (
-          <TouchableOpacity style={styles.receiptButton} onPress={handleOpenReceipt} disabled={openingReceipt}>
-            {openingReceipt ? (
-              <ActivityIndicator color={colors.primary} />
+      <LinearGradient
+        colors={[colors.primary, colors.accent]}
+        style={styles.summaryGradient}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Subtotal</Text>
+            <Text style={styles.summaryValue}>${subtotal.toFixed(2)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Total</Text>
+            <Text style={styles.summaryTotal}>${total.toFixed(2)}</Text>
+          </View>
+          {message && <Text style={styles.success}>{message}</Text>}
+          {receiptPath && (
+            <TouchableOpacity style={styles.receiptButton} onPress={handleOpenReceipt} disabled={openingReceipt}>
+              {openingReceipt ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.receiptButtonText}>Descargar comprobante</Text>
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout} disabled={submitting}>
+            {submitting ? (
+              <ActivityIndicator color={colors.white} />
             ) : (
-              <Text style={styles.receiptButtonText}>Descargar comprobante</Text>
+              <Text style={styles.checkoutText}>Confirmar pedido</Text>
             )}
           </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout} disabled={submitting}>
-          {submitting ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={styles.checkoutText}>Confirmar pedido</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+        </View>
+      </LinearGradient>
     </View>
   );
 }
@@ -194,6 +209,15 @@ const createStyles = (colors) =>
     container: {
       flex: 1,
       backgroundColor: colors.background,
+      position: "relative",
+    },
+    heroGradient: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 220,
+      opacity: 0.55,
     },
     header: {
       paddingHorizontal: 20,
@@ -211,8 +235,11 @@ const createStyles = (colors) =>
     },
     listContent: {
       paddingHorizontal: 16,
-      paddingBottom: 20,
+      paddingBottom: 170,
       gap: 16,
+    },
+    listInset: {
+      height: 12,
     },
     itemCard: {
       flexDirection: "row",
@@ -226,6 +253,8 @@ const createStyles = (colors) =>
       shadowOffset: { width: 0, height: 4 },
       elevation: 3,
       gap: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
     },
     itemName: {
       fontWeight: "700",
@@ -241,7 +270,7 @@ const createStyles = (colors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface || colors.background,
       padding: 6,
       borderRadius: 12,
     },
@@ -249,6 +278,11 @@ const createStyles = (colors) =>
       backgroundColor: colors.white,
       borderRadius: 10,
       padding: 6,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.05,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
     },
     quantityValue: {
       fontWeight: "700",
@@ -257,17 +291,27 @@ const createStyles = (colors) =>
     removeButton: {
       padding: 6,
     },
-    summary: {
+    summaryGradient: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 28,
+    },
+    summaryCard: {
+      backgroundColor: colors.overlay || colors.white,
+      borderRadius: 26,
       padding: 20,
-      backgroundColor: colors.card,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
       gap: 12,
       shadowColor: colors.shadow,
-      shadowOpacity: 0.1,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: -4 },
-      elevation: 6,
+      shadowOpacity: 0.15,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+      borderWidth: 1,
+      borderColor: colors.surface || colors.white,
     },
     summaryRow: {
       flexDirection: "row",
@@ -289,9 +333,14 @@ const createStyles = (colors) =>
     checkoutButton: {
       backgroundColor: colors.primary,
       paddingVertical: 16,
-      borderRadius: 16,
+      borderRadius: 18,
       alignItems: "center",
       marginTop: 8,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
     },
     receiptButton: {
       borderWidth: 1.5,
