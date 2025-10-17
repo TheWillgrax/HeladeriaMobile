@@ -370,7 +370,7 @@ export default function AdminScreen() {
         const [ordersResponse, productsResponse, categoriesResponse, dashboardResponse, usersResponse] =
           await Promise.all([
             orderApi.allOrders(token),
-            catalogApi.products(),
+            catalogApi.products({ includeInactive: true }),
             catalogApi.categories(),
             adminApi.dashboard(token, dashboardParams),
             adminApi.users(token),
@@ -400,7 +400,7 @@ export default function AdminScreen() {
   }, [token, isAdmin, buildDashboardParams, syncDashboardFilters]);
 
   const refreshProducts = async () => {
-    const response = await catalogApi.products();
+    const response = await catalogApi.products({ includeInactive: true });
     setProducts(response.products || []);
   };
 

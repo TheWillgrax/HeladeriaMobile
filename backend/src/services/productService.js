@@ -19,7 +19,7 @@ export const updateCategory = async (id, { name, description, active }) => {
   );
 };
 
-export const getProducts = async ({ categoryId, search }) => {
+export const getProducts = async ({ categoryId, search, includeInactive = false }) => {
   let sql =
     "SELECT p.id, p.name, p.description, p.price, p.image_url, p.stock, p.active, p.category_id, c.name AS category_name FROM products p LEFT JOIN categories c ON p.category_id = c.id";
   const params = {};
@@ -33,6 +33,10 @@ export const getProducts = async ({ categoryId, search }) => {
   if (search) {
     filters.push("(p.name LIKE :search OR p.description LIKE :search)");
     params.search = `%${search}%`;
+  }
+
+  if (!includeInactive) {
+    filters.push("p.active = 1");
   }
 
   if (filters.length) {

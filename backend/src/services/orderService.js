@@ -83,6 +83,85 @@ export const getAllOrders = async () => {
   );
 };
 
+const adjustStockForOrder = async (connection, orderId, mode) => {
+  const [items] = await connection.execute(
+    "SELECT product_id AS productId, quantity FROM order_items WHERE order_id = :orderId",
+    { orderId }
+  );
+
+  if (!items.length) {
+    return;
+  }
+
+  for (const item of items) {
+    const productId = Number(item.productId);
+    const quantity = Number(item.quantity);
+
+    if (!productId || !quantity) {
+      continue;
+    }
+
+    const [productRows] = await connection.execute(
+      "SELECT stock FROM products WHERE id = :productId FOR UPDATE",
+      { productId }
+    );
+
+    if (!productRows.length) {
+      continue;
+    }
+
+    const currentStock = Number(productRows[0].stock) || 0;
+    let newStock = currentStock;
+
+    if (mode === "decrease") {
+      newStock = Math.max(currentStock - quantity, 0);
+    } else if (mode === "increase") {
+      newStock = currentStock + quantity;
+    }
+
+    if (newStock !== currentStock) {
+      await connection.execute(
+        "UPDATE products SET stock = :stock WHERE id = :productId",
+        { stock: newStock, productId }
+      );
+    }
+  }
+};
+
 export const updateOrderStatus = async (orderId, status) => {
-  await pool.execute("UPDATE orders SET status = :status WHERE id = :orderId", { orderId, status });
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [orders] = await connection.execute(
+      "SELECT status FROM orders WHERE id = :orderId FOR UPDATE",
+      { orderId }
+    );
+
+    if (!orders.length) {
+      const error = new Error("Orden no encontrada");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const previousStatus = orders[0].status;
+
+    if (previousStatus !== status) {
+      await connection.execute("UPDATE orders SET status = :status WHERE id = :orderId", { orderId, status });
+
+      if (status === "paid" && previousStatus !== "paid") {
+        await adjustStockForOrder(connection, orderId, "decrease");
+      } else if (status === "cancelled" && previousStatus === "paid") {
+        await adjustStockForOrder(connection, orderId, "increase");
+      }
+    }
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
