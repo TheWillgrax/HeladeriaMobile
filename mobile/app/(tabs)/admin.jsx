@@ -156,7 +156,8 @@ export default function AdminScreen() {
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [userFormVisible, setUserFormVisible] = useState(false);
   const [userForm, setUserForm] = useState(USER_FORM_INITIAL);
-  const [creatingUser, setCreatingUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [savingUser, setSavingUser] = useState(false);
   const [selectedRange, setSelectedRange] = useState(DEFAULT_RANGE);
   const [selectedYear, setSelectedYear] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -420,12 +421,26 @@ export default function AdminScreen() {
 
   const openCreateUserForm = () => {
     setUserForm(USER_FORM_INITIAL);
+    setEditingUser(null);
     setUserFormVisible(true);
   };
 
   const closeUserForm = () => {
     setUserFormVisible(false);
     setUserForm(USER_FORM_INITIAL);
+    setEditingUser(null);
+  };
+
+  const openEditUser = (userToEdit) => {
+    setUserForm({
+      name: userToEdit.name || "",
+      email: userToEdit.email || "",
+      phone: userToEdit.phone || "",
+      password: "",
+      role: userToEdit.role || "customer",
+    });
+    setEditingUser(userToEdit);
+    setUserFormVisible(true);
   };
 
   const handleUserFormChange = (field, value) => {
@@ -453,29 +468,47 @@ export default function AdminScreen() {
       return;
     }
 
-    if (!userForm.password || userForm.password.length < 6) {
+    if (!editingUser && (!userForm.password || userForm.password.length < 6)) {
       Alert.alert("Contraseña inválida", "La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (editingUser && userForm.password && userForm.password.length < 6) {
+      Alert.alert("Contraseña inválida", "La nueva contraseña debe tener al menos 6 caracteres");
       return;
     }
 
     const payload = {
       name,
       email: email.toLowerCase(),
-      password: userForm.password,
       role: userForm.role,
       phone: phone ? phone : null,
     };
 
+    if (!editingUser) {
+      payload.password = userForm.password;
+    } else if (userForm.password) {
+      payload.password = userForm.password;
+    }
+
     try {
-      setCreatingUser(true);
-      await adminApi.createUser(token, payload);
+      setSavingUser(true);
+      if (editingUser) {
+        await adminApi.updateUser(token, editingUser.id, payload);
+        Alert.alert("Usuario actualizado", "Los cambios se guardaron correctamente");
+      } else {
+        await adminApi.createUser(token, payload);
+        Alert.alert("Usuario creado", "El usuario se creó correctamente");
+      }
       await refreshUsers();
-      Alert.alert("Usuario creado", "El usuario se creó correctamente");
       closeUserForm();
     } catch (err) {
-      Alert.alert("Error creando usuario", err.message || "Intenta nuevamente");
+      Alert.alert(
+        editingUser ? "Error actualizando usuario" : "Error creando usuario",
+        err.message || "Intenta nuevamente"
+      );
     } finally {
-      setCreatingUser(false);
+      setSavingUser(false);
     }
   };
 
@@ -1251,7 +1284,9 @@ export default function AdminScreen() {
 
           {userFormVisible && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Crear usuario</Text>
+              <Text style={styles.cardTitle}>
+                {editingUser ? "Editar usuario" : "Crear usuario"}
+              </Text>
 
               <View style={styles.formRow}>
                 <Text style={styles.inputLabel}>Nombre</Text>
@@ -1299,6 +1334,9 @@ export default function AdminScreen() {
                   secureTextEntry
                   placeholderTextColor={colors.textLight}
                 />
+                {editingUser && (
+                  <Text style={styles.helperText}>Deja en blanco para mantener la contraseña actual.</Text>
+                )}
               </View>
 
               <View style={styles.formRow}>
@@ -1323,18 +1361,20 @@ export default function AdminScreen() {
                 <TouchableOpacity
                   style={[styles.primaryButton, styles.formButton]}
                   onPress={handleSubmitUser}
-                  disabled={creatingUser}
+                  disabled={savingUser}
                 >
-                  {creatingUser ? (
+                  {savingUser ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Crear usuario</Text>
+                    <Text style={styles.primaryButtonText}>
+                      {editingUser ? "Actualizar usuario" : "Crear usuario"}
+                    </Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.secondaryButton, styles.formButton]}
                   onPress={closeUserForm}
-                  disabled={creatingUser}
+                  disabled={savingUser}
                 >
                   <Text style={styles.secondaryButtonText}>Cancelar</Text>
                 </TouchableOpacity>
@@ -1346,7 +1386,13 @@ export default function AdminScreen() {
             <Text style={styles.emptyText}>Todavía no hay usuarios registrados.</Text>
           ) : (
             usersList.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <View
+                key={item.id}
+                style={[
+                  styles.card,
+                  editingUser?.id === item.id && { borderColor: colors.accent, borderWidth: 2 },
+                ]}
+              >
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle}>{item.name}</Text>
                   <Text style={[styles.badge, item.role === "admin" ? styles.statuspaid : styles.statuspending]}>
@@ -1356,6 +1402,11 @@ export default function AdminScreen() {
                 <Text style={styles.cardSubtitle}>{item.email}</Text>
                 {item.phone && <Text style={styles.cardSubtitle}>Teléfono: {item.phone}</Text>}
                 <Text style={styles.cardSubtitle}>Registrado: {new Date(item.createdAt).toLocaleDateString()}</Text>
+                <View style={styles.inlineActions}>
+                  <TouchableOpacity style={styles.actionButton} onPress={() => openEditUser(item)}>
+                    <Text style={styles.actionButtonText}>Editar</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))
           )}
@@ -1825,6 +1876,11 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: "600",
     color: colors.text,
   },
+  helperText: {
+    fontSize: 12,
+    color: colors.textLight,
+    marginTop: 4,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -1842,6 +1898,11 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  inlineActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
   },
   chip: {
     paddingHorizontal: 12,
