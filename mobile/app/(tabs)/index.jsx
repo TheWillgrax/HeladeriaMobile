@@ -1,15 +1,39 @@
-import { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Animated,
+  Easing,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { catalogApi, orderApi, resolveImageUrl } from "@/services/api";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { LinearGradient } from "expo-linear-gradient";
 
 const heroImage = {
   uri: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=500&q=60",
 };
 const fallbackProductImage = "https://images.unsplash.com/photo-1488900128323-21503983a07e?auto=format&fit=crop&w=600&q=60";
+
+const withOpacity = (hexColor, alpha = 1) => {
+  if (!hexColor) return `rgba(255,255,255,${alpha})`;
+  const hex = hexColor.replace("#", "");
+  const bigint = parseInt(hex, 16);
+  if (Number.isNaN(bigint)) {
+    return `rgba(255,255,255,${alpha})`;
+  }
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 const getProductImage = (imageUrl) => {
   const resolved = resolveImageUrl(imageUrl);
@@ -27,6 +51,130 @@ export default function HomeScreen() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const heroAnimation = useRef(new Animated.Value(0)).current;
+  const pulseAnimation = useRef(new Animated.Value(0)).current;
+
+  const heroGradientColors = useMemo(
+    () => [withOpacity(colors.primary, 0.95), withOpacity(colors.accent, 0.9)],
+    [colors.primary, colors.accent],
+  );
+  const statGradients = useMemo(
+    () => [
+      [withOpacity(colors.white, 0.8), withOpacity(colors.white, 0.3)],
+      [withOpacity(colors.accent, 0.45), withOpacity(colors.primary, 0.35)],
+      [withOpacity(colors.primary, 0.45), withOpacity(colors.accent, 0.35)],
+    ],
+    [colors.white, colors.accent, colors.primary],
+  );
+  const categoryGradients = useMemo(
+    () => [
+      [withOpacity(colors.primary, 0.85), withOpacity(colors.primary, 0.5)],
+      [withOpacity(colors.accent, 0.85), withOpacity(colors.accent, 0.5)],
+    ],
+    [colors.primary, colors.accent],
+  );
+
+  useEffect(() => {
+    Animated.timing(heroAnimation, {
+      toValue: 1,
+      duration: 700,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: true,
+    }).start();
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnimation, {
+          toValue: 1,
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnimation, {
+          toValue: 0,
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [heroAnimation, pulseAnimation]);
+
+  const stats = useMemo(() => {
+    if (!user) {
+      return [
+        {
+          id: "flavors",
+          label: "Sabores artesanales",
+          value: "40+",
+          description: "Recetas creadas a mano cada semana.",
+        },
+        {
+          id: "delivery",
+          label: "Entrega promedio",
+          value: "25 min",
+          description: "Desde nuestra heladería a tu puerta.",
+        },
+        {
+          id: "rating",
+          label: "Clientes felices",
+          value: "4.9★",
+          description: "Basado en reseñas de la comunidad.",
+        },
+      ];
+    }
+
+    const ordersCount = orders.length;
+    const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+    const itemCounter = new Map();
+    orders.forEach((order) => {
+      order.items?.forEach((item) => {
+        const current = itemCounter.get(item.name) || 0;
+        itemCounter.set(item.name, current + (item.quantity || 0));
+      });
+    });
+    const [favoriteName] = Array.from(itemCounter.entries()).sort((a, b) => b[1] - a[1])[0] || [];
+
+    return [
+      {
+        id: "orders",
+        label: "Pedidos realizados",
+        value: `${ordersCount}`,
+        description: ordersCount ? "Helados listos para disfrutar." : "Haz tu primer pedido helado.",
+      },
+      {
+        id: "spent",
+        label: "Total disfrutado",
+        value: ordersCount ? `$${totalSpent.toFixed(2)}` : "$0.00",
+        description: ordersCount ? "Gracias por tu preferencia." : "Explora nuestros sabores favoritos.",
+      },
+      {
+        id: "favorite",
+        label: "Sabor destacado",
+        value: favoriteName || "Por descubrir",
+        description: favoriteName ? "Basado en tus últimas compras." : "Añade algo a tu carrito hoy.",
+      },
+    ];
+  }, [orders, user]);
+
+  const bubbleScale = pulseAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.15],
+  });
+  const bubbleOpacity = pulseAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.55],
+  });
+  const heroImageFloat = pulseAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -12],
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -72,25 +220,86 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.hero}>
-        <View style={styles.heroText}>
-          <Text style={styles.heroTag}>Helados Victoria</Text>
-          <Text style={styles.heroTitle}>Sabores hechos con amor mexicano</Text>
-          <Text style={styles.heroSubtitle}>
-            Descubre nuestras combinaciones de temporada, paletas artesanales y malteadas cremosas.
-          </Text>
-          <View style={styles.heroActions}>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/menu")}>
-              <Text style={styles.primaryButtonText}>Explorar carta</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/(tabs)/cart")}>
-              <Text style={styles.secondaryButtonText}>Ver carrito</Text>
-            </TouchableOpacity>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <Animated.View
+        style={[
+          styles.hero,
+          {
+            opacity: heroAnimation,
+            transform: [
+              {
+                translateY: heroAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [24, 0],
+                }),
+              },
+              {
+                scale: heroAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.96, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <LinearGradient colors={heroGradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroGradient}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.heroGlow,
+              {
+                opacity: bubbleOpacity,
+                transform: [{ scale: bubbleScale }],
+              },
+            ]}
+          />
+          <View style={styles.heroText}>
+            <View style={styles.heroChip}>
+              <Text style={styles.heroChipText}>Nueva temporada</Text>
+            </View>
+            <Text style={styles.heroTitle}>Sabores hechos con amor mexicano</Text>
+            <Text style={styles.heroSubtitle}>
+              Descubre nuestras combinaciones de temporada, paletas artesanales y malteadas cremosas.
+            </Text>
+            <View style={styles.heroActions}>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/menu")}>
+                <LinearGradient
+                  colors={[withOpacity(colors.white, 0.25), withOpacity(colors.white, 0.05)]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.primaryButtonGradient}
+                >
+                  <Text style={styles.primaryButtonText}>Explorar carta</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/(tabs)/cart")}>
+                <Text style={styles.secondaryButtonText}>Ver carrito</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-        <Image source={heroImage} style={styles.heroImage} resizeMode="contain" />
-      </View>
+          <Animated.View style={[styles.heroImageWrapper, { transform: [{ translateY: heroImageFloat }] }]}>
+            <View style={styles.heroImageBackdrop} />
+            <Image source={heroImage} style={styles.heroImage} resizeMode="contain" />
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
+        {stats.map((stat, index) => (
+          <LinearGradient
+            key={stat.id}
+            colors={statGradients[index % statGradients.length]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.statsCard}
+          >
+            <Text style={styles.statsValue}>{stat.value}</Text>
+            <Text style={styles.statsLabel}>{stat.label}</Text>
+            <Text style={styles.statsDescription}>{stat.description}</Text>
+          </LinearGradient>
+        ))}
+      </ScrollView>
 
       {loading && (
         <View style={styles.loadingWrapper}>
@@ -102,25 +311,56 @@ export default function HomeScreen() {
 
       {!loading && (
         <>
-          <Text style={styles.sectionTitle}>Categorías populares</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Categorías populares</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/menu")}>
+              <Text style={styles.sectionLink}>Ver todas</Text>
+            </TouchableOpacity>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            {categories.map((category) => (
+            {categories.map((category, index) => (
               <TouchableOpacity
                 key={category.id}
-                style={styles.categoryCard}
-                onPress={() => router.push({ pathname: "/(tabs)/menu", params: { categoryId: category.id, categoryName: category.name } })}
+                style={styles.categoryCardWrapper}
+                activeOpacity={0.9}
+                onPress={() =>
+                  router.push({ pathname: "/(tabs)/menu", params: { categoryId: category.id, categoryName: category.name } })
+                }
               >
-                <Text style={styles.categoryName}>{category.name}</Text>
-                <Text style={styles.categoryDescription}>{category.description}</Text>
+                <LinearGradient
+                  colors={categoryGradients[index % categoryGradients.length]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.categoryCard}
+                >
+                  <Text style={styles.categoryName}>{category.name}</Text>
+                  <Text style={styles.categoryDescription} numberOfLines={2}>
+                    {category.description || "Una deliciosa selección para ti."}
+                  </Text>
+                  <View style={styles.categoryAction}>
+                    <Text style={styles.categoryActionText}>Descubrir</Text>
+                    <Text style={styles.categoryActionArrow}>→</Text>
+                  </View>
+                </LinearGradient>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <Text style={styles.sectionTitle}>Recomendados para ti</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recomendados para ti</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/menu")}>
+              <Text style={styles.sectionLink}>Ver menú completo</Text>
+            </TouchableOpacity>
+          </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productRow}>
-            {featured.map((product) => (
+            {featured.map((product, index) => (
               <View key={product.id} style={styles.productCard}>
-                <Image source={getProductImage(product.image_url)} style={styles.productImage} />
+                <View style={styles.productImageWrapper}>
+                  <Image source={getProductImage(product.image_url)} style={styles.productImage} />
+                  <View style={styles.productBadge}>
+                    <Text style={styles.productBadgeText}>#{index + 1} Top</Text>
+                  </View>
+                </View>
                 <Text style={styles.productName}>{product.name}</Text>
                 <Text style={styles.productDescription} numberOfLines={2}>
                   {product.description}
@@ -128,7 +368,14 @@ export default function HomeScreen() {
                 <View style={styles.productFooter}>
                   <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
                   <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(product.id)}>
-                    <Text style={styles.addButtonText}>Añadir</Text>
+                    <LinearGradient
+                      colors={[colors.accent, colors.primary]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.addButtonInner}
+                    >
+                      <Text style={styles.addButtonText}>Añadir</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -137,26 +384,40 @@ export default function HomeScreen() {
 
           {user && (
             <View style={styles.ordersSection}>
-              <Text style={styles.sectionTitle}>Tus últimos pedidos</Text>
+              <View style={styles.sectionHeaderAlt}>
+                <Text style={styles.sectionTitle}>Tus últimos pedidos</Text>
+                <TouchableOpacity onPress={() => router.push("/(tabs)/orders")}>
+                  <Text style={styles.sectionLink}>Ver historial</Text>
+                </TouchableOpacity>
+              </View>
               {orders.length === 0 ? (
                 <Text style={styles.emptyText}>Aún no has realizado pedidos. ¡Haz tu primera orden helada!</Text>
               ) : (
-                orders.map((order) => (
-                  <View key={order.id} style={styles.orderCard}>
-                    <View style={styles.orderHeader}>
-                      <Text style={styles.orderId}>Orden #{order.id}</Text>
-                      <Text style={styles.orderStatus}>{order.status}</Text>
-                    </View>
-                    <Text style={styles.orderTotal}>Total: ${Number(order.total).toFixed(2)}</Text>
-                    <View style={styles.orderItems}>
-                      {order.items?.map((item) => (
-                        <Text key={item.id} style={styles.orderItem}>
-                          {item.quantity}x {item.name}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ))
+                orders.map((order) => {
+                  const gradient = [withOpacity(colors.card, 0.95), withOpacity(colors.accent, 0.15)];
+                  return (
+                    <LinearGradient
+                      key={order.id}
+                      colors={gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.orderCard}
+                    >
+                      <View style={styles.orderHeader}>
+                        <Text style={styles.orderId}>Orden #{order.id}</Text>
+                        <Text style={styles.orderStatus}>{order.status}</Text>
+                      </View>
+                      <Text style={styles.orderTotal}>Total: ${Number(order.total).toFixed(2)}</Text>
+                      <View style={styles.orderItems}>
+                        {order.items?.map((item) => (
+                          <Text key={item.id} style={styles.orderItem}>
+                            {item.quantity}x {item.name}
+                          </Text>
+                        ))}
+                      </View>
+                    </LinearGradient>
+                  );
+                })
               )}
             </View>
           )}
@@ -169,126 +430,255 @@ export default function HomeScreen() {
 const createStyles = (colors) =>
   StyleSheet.create({
     container: {
-      paddingBottom: 32,
+      paddingBottom: 40,
       backgroundColor: colors.background,
     },
     hero: {
-      backgroundColor: colors.primary,
-      margin: 20,
-      borderRadius: 28,
+      marginHorizontal: 20,
+      marginTop: 16,
+      borderRadius: 32,
+      overflow: "visible",
+    },
+    heroGradient: {
+      borderRadius: 32,
       padding: 24,
       flexDirection: "row",
       alignItems: "center",
+      overflow: "hidden",
+    },
+    heroGlow: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 32,
+      backgroundColor: withOpacity(colors.white, 0.25),
     },
     heroText: {
       flex: 1,
-      gap: 12,
     },
-    heroTag: {
+    heroChip: {
+      alignSelf: "flex-start",
+      paddingVertical: 6,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      backgroundColor: withOpacity(colors.white, 0.22),
+    },
+    heroChipText: {
       color: colors.white,
-      fontWeight: "600",
+      fontWeight: "700",
+      fontSize: 12,
+      letterSpacing: 0.5,
       textTransform: "uppercase",
     },
     heroTitle: {
-      fontSize: 28,
+      fontSize: 30,
       fontWeight: "800",
       color: colors.white,
-      lineHeight: 34,
+      lineHeight: 36,
+      marginTop: 12,
     },
     heroSubtitle: {
-      color: colors.white,
-      opacity: 0.85,
+      color: withOpacity(colors.white, 0.9),
       fontSize: 14,
+      lineHeight: 20,
+      marginTop: 10,
     },
     heroActions: {
       flexDirection: "row",
-      gap: 12,
-      marginTop: 12,
-    },
-    heroImage: {
-      width: 140,
-      height: 140,
-      marginLeft: 16,
+      alignItems: "center",
+      marginTop: 16,
     },
     primaryButton: {
-      backgroundColor: colors.accent,
+      borderRadius: 18,
+      overflow: "hidden",
+      minWidth: 150,
+      marginRight: 12,
+    },
+    primaryButtonGradient: {
       paddingVertical: 12,
       paddingHorizontal: 18,
-      borderRadius: 14,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
     },
     primaryButtonText: {
       color: colors.white,
       fontWeight: "700",
+      fontSize: 15,
     },
     secondaryButton: {
-      borderWidth: 1,
-      borderColor: colors.white,
+      borderRadius: 18,
       paddingVertical: 12,
       paddingHorizontal: 18,
-      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: withOpacity(colors.white, 0.6),
+      backgroundColor: withOpacity(colors.white, 0.12),
     },
     secondaryButtonText: {
       color: colors.white,
       fontWeight: "600",
+      fontSize: 15,
     },
-    sectionTitle: {
-      fontSize: 20,
+    heroImageWrapper: {
+      marginLeft: 18,
+      width: 150,
+      height: 150,
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+    },
+    heroImageBackdrop: {
+      position: "absolute",
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      backgroundColor: withOpacity(colors.white, 0.28),
+      opacity: 0.9,
+    },
+    heroImage: {
+      width: 150,
+      height: 150,
+    },
+    statsScroll: {
+      paddingHorizontal: 20,
+      paddingVertical: 18,
+    },
+    statsCard: {
+      width: 210,
+      borderRadius: 24,
+      padding: 18,
+      marginRight: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 5,
+    },
+    statsValue: {
+      fontSize: 26,
+      fontWeight: "800",
+      color: colors.text,
+    },
+    statsLabel: {
+      marginTop: 8,
       fontWeight: "700",
       color: colors.text,
+    },
+    statsDescription: {
+      marginTop: 6,
+      color: colors.textLight,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
       marginHorizontal: 20,
-      marginTop: 24,
+      marginTop: 28,
       marginBottom: 12,
+    },
+    sectionHeaderAlt: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: colors.text,
+    },
+    sectionLink: {
+      color: colors.accent,
+      fontWeight: "600",
     },
     categoryRow: {
       paddingHorizontal: 16,
-      gap: 12,
+      paddingBottom: 4,
     },
-    categoryCard: {
-      backgroundColor: colors.card,
-      padding: 16,
-      borderRadius: 18,
-      width: 200,
-      shadowColor: colors.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 4,
-    },
-    categoryName: {
-      fontWeight: "700",
-      fontSize: 16,
-      color: colors.text,
-      marginBottom: 6,
-    },
-    categoryDescription: {
-      color: colors.textLight,
-      fontSize: 13,
-    },
-    productRow: {
-      paddingHorizontal: 16,
-      gap: 16,
-    },
-    productCard: {
-      width: 220,
-      backgroundColor: colors.card,
-      borderRadius: 20,
-      padding: 16,
+    categoryCardWrapper: {
+      borderRadius: 22,
+      marginRight: 16,
       shadowColor: colors.shadow,
       shadowOpacity: 0.1,
       shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
+      overflow: "hidden",
+    },
+    categoryCard: {
+      width: 220,
+      padding: 18,
+      justifyContent: "space-between",
+      minHeight: 140,
+    },
+    categoryName: {
+      fontWeight: "800",
+      fontSize: 18,
+      color: colors.white,
+    },
+    categoryDescription: {
+      marginTop: 8,
+      color: withOpacity(colors.white, 0.9),
+      fontSize: 13,
+      lineHeight: 18,
+    },
+    categoryAction: {
+      marginTop: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    categoryActionText: {
+      color: colors.white,
+      fontWeight: "600",
+    },
+    categoryActionArrow: {
+      color: colors.white,
+      fontSize: 18,
+    },
+    productRow: {
+      paddingHorizontal: 16,
+      paddingBottom: 4,
+    },
+    productCard: {
+      width: 240,
+      backgroundColor: colors.card,
+      borderRadius: 24,
+      padding: 18,
+      marginRight: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 14,
       shadowOffset: { width: 0, height: 6 },
       elevation: 6,
     },
+    productImageWrapper: {
+      borderRadius: 18,
+      overflow: "hidden",
+      marginBottom: 12,
+      position: "relative",
+    },
     productImage: {
       width: "100%",
-      height: 120,
-      borderRadius: 16,
-      marginBottom: 12,
-      backgroundColor: colors.background,
+      height: 130,
+    },
+    productBadge: {
+      position: "absolute",
+      top: 12,
+      left: 12,
+      paddingVertical: 4,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      backgroundColor: withOpacity(colors.primary, 0.9),
+    },
+    productBadgeText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: colors.white,
     },
     productName: {
       fontWeight: "700",
-      fontSize: 16,
+      fontSize: 17,
       color: colors.text,
     },
     productDescription: {
@@ -300,42 +690,46 @@ const createStyles = (colors) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginTop: 16,
+      marginTop: 18,
     },
     productPrice: {
-      fontWeight: "700",
+      fontWeight: "800",
       color: colors.primary,
-      fontSize: 16,
+      fontSize: 18,
     },
     addButton: {
-      backgroundColor: colors.primary,
-      paddingVertical: 8,
-      paddingHorizontal: 14,
-      borderRadius: 12,
+      borderRadius: 16,
+      overflow: "hidden",
+    },
+    addButtonInner: {
+      paddingVertical: 10,
+      paddingHorizontal: 18,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
     },
     addButtonText: {
       color: colors.white,
-      fontWeight: "600",
+      fontWeight: "700",
     },
     ordersSection: {
-      marginTop: 24,
+      marginTop: 32,
       paddingHorizontal: 20,
-      gap: 12,
+      paddingBottom: 24,
     },
     emptyText: {
       color: colors.textLight,
-      marginHorizontal: 20,
       fontSize: 14,
     },
     orderCard: {
-      backgroundColor: colors.card,
-      borderRadius: 18,
-      padding: 16,
+      borderRadius: 24,
+      padding: 18,
+      marginBottom: 16,
       shadowColor: colors.shadow,
-      shadowOpacity: 0.06,
-      shadowRadius: 10,
+      shadowOpacity: 0.08,
+      shadowRadius: 12,
       shadowOffset: { width: 0, height: 4 },
-      elevation: 3,
+      elevation: 4,
     },
     orderHeader: {
       flexDirection: "row",
@@ -347,7 +741,7 @@ const createStyles = (colors) =>
       color: colors.text,
     },
     orderStatus: {
-      fontWeight: "600",
+      fontWeight: "700",
       color: colors.accent,
       textTransform: "capitalize",
     },
@@ -357,18 +751,19 @@ const createStyles = (colors) =>
       marginBottom: 6,
     },
     orderItems: {
-      gap: 4,
+      marginTop: 8,
     },
     orderItem: {
       color: colors.textLight,
+      marginBottom: 4,
     },
     loadingWrapper: {
-      marginVertical: 40,
+      marginVertical: 36,
       alignItems: "center",
     },
     error: {
       color: colors.error,
       textAlign: "center",
-      marginTop: 12,
+      marginTop: 16,
     },
   });
