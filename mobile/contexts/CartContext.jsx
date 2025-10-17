@@ -25,11 +25,14 @@ export const CartProvider = ({ children }) => {
     return { subtotal, total };
   }, []);
 
-  const syncCartState = useCallback((payload) => {
-    const nextItems = normaliseItems(payload?.items || []);
-    setItems(nextItems);
-    setTotals(computeTotals(nextItems, payload?.totals));
-  }, [computeTotals, normaliseItems]);
+  const syncCartState = useCallback(
+    (payload) => {
+      const nextItems = normaliseItems(payload?.items || []);
+      setItems(nextItems);
+      setTotals(computeTotals(nextItems, payload?.totals));
+    },
+    [computeTotals, normaliseItems]
+  );
 
   const fetchCart = useCallback(async () => {
     if (!token) {
@@ -53,34 +56,44 @@ export const CartProvider = ({ children }) => {
     fetchCart();
   }, [fetchCart]);
 
+  const ensureFreshState = useCallback(
+    async (maybeCart) => {
+      if (maybeCart?.items) {
+        syncCartState(maybeCart);
+        return maybeCart;
+      }
+
+      await fetchCart();
+      return null;
+    },
+    [fetchCart, syncCartState]
+  );
+
   const addItem = useCallback(
     async ({ productId, quantity }) => {
       if (!token) throw new Error("Es necesario iniciar sesión");
       const data = await cartApi.addItem(token, { productId, quantity });
-      syncCartState(data);
-      return data;
+      return ensureFreshState(data);
     },
-    [token, syncCartState]
+    [token, ensureFreshState]
   );
 
   const updateItem = useCallback(
     async ({ itemId, quantity }) => {
       if (!token) throw new Error("Es necesario iniciar sesión");
       const data = await cartApi.updateItem(token, itemId, { quantity });
-      syncCartState(data);
-      return data;
+      return ensureFreshState(data);
     },
-    [token, syncCartState]
+    [token, ensureFreshState]
   );
 
   const removeItem = useCallback(
     async (itemId) => {
       if (!token) throw new Error("Es necesario iniciar sesión");
       const data = await cartApi.deleteItem(token, itemId);
-      syncCartState(data);
-      return data;
+      return ensureFreshState(data);
     },
-    [token, syncCartState]
+    [token, ensureFreshState]
   );
 
   const checkout = useCallback(async () => {

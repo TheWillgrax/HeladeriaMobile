@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Redirect, Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -33,13 +34,19 @@ const TabsLayout = () => {
         headerShown: true,
         headerTitle: "Helados Victoria",
         headerTitleAlign: "center",
-        headerStyle: {
-          backgroundColor: colors.primary,
-        },
         headerTintColor: colors.white,
+        headerBackground: () => (
+          <LinearGradient
+            colors={[colors.primary, colors.accent]}
+            start={{ x: 0, y: 1 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        ),
         headerTitleStyle: {
           fontWeight: "800",
           fontSize: 18,
+          letterSpacing: 0.5,
         },
         headerRight: () => (
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
@@ -55,11 +62,19 @@ const TabsLayout = () => {
           borderTopWidth: 1,
           paddingBottom: 8,
           paddingTop: 8,
-          height: 80,
+          height: 78,
+          shadowColor: colors.shadow,
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -2 },
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
+          letterSpacing: 0.2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 6,
         },
       }}
     >

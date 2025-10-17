@@ -1435,7 +1435,7 @@ const createStyles = (colors) => StyleSheet.create({
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface || colors.card,
     borderRadius: 16,
     padding: 6,
     marginTop: 20,
@@ -1445,6 +1445,8 @@ const createStyles = (colors) => StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tabButton: {
     flex: 1,
@@ -1455,6 +1457,11 @@ const createStyles = (colors) => StyleSheet.create({
   },
   tabButtonActive: {
     backgroundColor: colors.primary,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   tabButtonText: {
     color: colors.textLight,
@@ -1493,6 +1500,8 @@ const createStyles = (colors) => StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   filterHeading: {
     fontSize: 16,
@@ -1524,7 +1533,12 @@ const createStyles = (colors) => StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface || colors.card,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   filterChipActive: {
     backgroundColor: colors.primary,
@@ -1552,6 +1566,8 @@ const createStyles = (colors) => StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   metricLabel: {
     color: colors.textLight,
@@ -1581,6 +1597,8 @@ const createStyles = (colors) => StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
     gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: "row",
