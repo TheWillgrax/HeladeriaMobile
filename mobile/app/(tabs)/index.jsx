@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  FlatList,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { catalogApi, orderApi, resolveImageUrl } from "@/services/api";
@@ -20,10 +22,8 @@ import { formatCurrency, normaliseStatus, toNumber } from "@/utils/format";
 import SocialFloatingButtons from "@/components/SocialFloatingButtons";
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
-const heroImage = {
-  uri: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=500&q=60",
-};
 const fallbackProductImage = "https://images.unsplash.com/photo-1488900128323-21503983a07e?auto=format&fit=crop&w=600&q=60";
 
 const withOpacity = (hexColor, alpha = 1) => {
@@ -58,6 +58,7 @@ export default function HomeScreen() {
   const { token, user } = useAuth();
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width: windowWidth } = useWindowDimensions();
   const [categories, setCategories] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -69,6 +70,8 @@ export default function HomeScreen() {
   const statsAnimations = useRef([]);
   const categoryAnimations = useRef([]);
   const featuredAnimations = useRef([]);
+  const heroCarouselRef = useRef(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   const heroGradientColors = useMemo(
     () => [withOpacity(colors.primary, 0.95), withOpacity(colors.accent, 0.9)],
@@ -89,6 +92,52 @@ export default function HomeScreen() {
     ],
     [colors.primary, colors.accent],
   );
+
+  const heroSlides = useMemo(
+    () => [
+      {
+        id: "season",
+        tag: "Nueva temporada",
+        title: "Sabores hechos con amor mexicano",
+        subtitle:
+          "Descubre nuestras combinaciones de temporada, paletas artesanales y malteadas cremosas.",
+        image:
+          "https://images.unsplash.com/photo-1528711653822-94c4d01c1ebb?auto=format&fit=crop&w=500&q=60",
+        gradient: heroGradientColors,
+        primaryAction: { label: "Explorar carta", route: "/(tabs)/menu" },
+        secondaryAction: { label: "Ver carrito", route: "/(tabs)/cart" },
+      },
+      {
+        id: "events",
+        tag: "Eventos dulces",
+        title: "Lleva la experiencia Heladería a tus celebraciones",
+        subtitle:
+          "Crea barras de helado personalizadas, toppings ilimitados y servicio para tus invitados.",
+        image:
+          "https://images.unsplash.com/photo-1504753793650-d4a2b783c15e?auto=format&fit=crop&w=500&q=60",
+        gradient: [withOpacity(colors.accent, 0.95), withOpacity(colors.primary, 0.85)],
+        primaryAction: { label: "Cotizar evento", route: "/(tabs)/orders" },
+        secondaryAction: { label: "Hablar con nosotros", route: "/(tabs)/settings" },
+      },
+      {
+        id: "toppings",
+        tag: "Nuevo topping",
+        title: "Crujientes, salsas y sorpresas limitadas",
+        subtitle:
+          "Combina frutas, chocolates flameados y glaseados chispeantes en cada visita.",
+        image:
+          "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=500&q=60",
+        gradient: [withOpacity(colors.primary, 0.9), withOpacity(colors.white, 0.6)],
+        primaryAction: { label: "Personalizar helado", route: "/(tabs)/menu" },
+        secondaryAction: { label: "Ver promociones", route: "/(tabs)/cart" },
+      },
+    ],
+    [colors.accent, colors.primary, colors.white, heroGradientColors],
+  );
+
+  const heroSpacing = 16;
+  const heroCardWidth = useMemo(() => Math.max(Math.min(windowWidth - 40, 420), 260), [windowWidth]);
+  const heroSnapInterval = heroCardWidth + heroSpacing;
 
   useEffect(() => {
     Animated.timing(heroAnimation, {
@@ -215,6 +264,20 @@ export default function HomeScreen() {
   });
 
   useEffect(() => {
+    if (heroSlides.length < 2) return undefined;
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => {
+        const next = (prev + 1) % heroSlides.length;
+        if (heroCarouselRef.current && heroSlides.length > 1) {
+          heroCarouselRef.current.scrollToIndex({ index: next, animated: true });
+        }
+        return next;
+      });
+    }, 6500);
+    return () => clearInterval(interval);
+  }, [heroSlides.length]);
+
+  useEffect(() => {
     if (!stats.length) {
       return;
     }
@@ -337,61 +400,106 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <LinearGradient colors={heroGradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroGradient}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.heroGlow,
-              {
-                opacity: bubbleOpacity,
-                transform: [{ scale: bubbleScale }],
-              },
-            ]}
-          />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.heroShimmer,
-              {
-                opacity: heroShimmer.interpolate({
-                  inputRange: [0, 0.5, 1],
-                  outputRange: [0, 0.45, 0],
-                }),
-                transform: [
-                  { translateX: heroShimmer.interpolate({ inputRange: [0, 1], outputRange: [-160, 220] }) },
-                ],
-              },
-            ]}
-          />
-          <View style={styles.heroText}>
-            <View style={styles.heroChip}>
-              <Text style={styles.heroChipText}>Nueva temporada</Text>
+        <AnimatedFlatList
+          ref={heroCarouselRef}
+          data={heroSlides}
+          horizontal
+          keyExtractor={(item) => item.id}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={heroSnapInterval}
+          snapToAlignment="start"
+          bounces={false}
+          contentContainerStyle={styles.heroCarousel}
+          renderItem={({ item }) => (
+            <View style={[styles.heroSlide, { width: heroCardWidth }]}>
+              <LinearGradient colors={item.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroGradient}>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.heroGlow,
+                    {
+                      opacity: bubbleOpacity,
+                      transform: [{ scale: bubbleScale }],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.heroShimmer,
+                    {
+                      opacity: heroShimmer.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0, 0.45, 0],
+                      }),
+                      transform: [
+                        {
+                          translateX: heroShimmer.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [-160, 220],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.heroText}>
+                  <View style={styles.heroChip}>
+                    <Text style={styles.heroChipText}>{item.tag}</Text>
+                  </View>
+                  <Text style={styles.heroTitle}>{item.title}</Text>
+                  <Text style={styles.heroSubtitle}>{item.subtitle}</Text>
+                  <View style={styles.heroActions}>
+                    <TouchableOpacity
+                      style={styles.primaryButton}
+                      onPress={() => router.push(item.primaryAction.route)}
+                    >
+                      <LinearGradient
+                        colors={[withOpacity(colors.white, 0.25), withOpacity(colors.white, 0.05)]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.primaryButtonGradient}
+                      >
+                        <Text style={styles.primaryButtonText}>{item.primaryAction.label}</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                    {item.secondaryAction ? (
+                      <TouchableOpacity
+                        style={styles.secondaryButton}
+                        onPress={() => router.push(item.secondaryAction.route)}
+                      >
+                        <Text style={styles.secondaryButtonText}>{item.secondaryAction.label}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+                <Animated.View style={[styles.heroImageWrapper, { transform: [{ translateY: heroImageFloat }] }]}>
+                  <View style={styles.heroImageBackdrop} />
+                  <Image source={{ uri: item.image }} style={styles.heroImage} resizeMode="cover" />
+                </Animated.View>
+              </LinearGradient>
             </View>
-            <Text style={styles.heroTitle}>Sabores hechos con amor mexicano</Text>
-            <Text style={styles.heroSubtitle}>
-              Descubre nuestras combinaciones de temporada, paletas artesanales y malteadas cremosas.
-            </Text>
-            <View style={styles.heroActions}>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => router.push("/(tabs)/menu")}>
-                <LinearGradient
-                  colors={[withOpacity(colors.white, 0.25), withOpacity(colors.white, 0.05)]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.primaryButtonGradient}
-                >
-                  <Text style={styles.primaryButtonText}>Explorar carta</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push("/(tabs)/cart")}>
-                <Text style={styles.secondaryButtonText}>Ver carrito</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Animated.View style={[styles.heroImageWrapper, { transform: [{ translateY: heroImageFloat }] }]}>
-            <View style={styles.heroImageBackdrop} />
-            <Image source={heroImage} style={styles.heroImage} resizeMode="contain" />
-          </Animated.View>
-        </LinearGradient>
+          )}
+          onMomentumScrollEnd={(event) => {
+            const rawIndex = Math.round(event.nativeEvent.contentOffset.x / heroSnapInterval);
+            const boundedIndex = Math.min(heroSlides.length - 1, Math.max(0, rawIndex));
+            setActiveSlide(boundedIndex);
+          }}
+          getItemLayout={(data, index) => ({
+            length: heroSnapInterval,
+            offset: heroSnapInterval * index,
+            index,
+          })}
+        />
+        <View style={styles.heroIndicators}>
+          {heroSlides.map((slide, index) => (
+            <View
+              key={slide.id}
+              style={[styles.heroIndicator, index === activeSlide && styles.heroIndicatorActive]}
+            />
+          ))}
+        </View>
       </Animated.View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
@@ -614,6 +722,14 @@ const createStyles = (colors) =>
       borderRadius: 32,
       overflow: "visible",
     },
+    heroCarousel: {
+      paddingRight: 20,
+      paddingLeft: 20,
+      paddingBottom: 12,
+    },
+    heroSlide: {
+      marginRight: 16,
+    },
     heroGradient: {
       borderRadius: 32,
       padding: 24,
@@ -705,23 +821,40 @@ const createStyles = (colors) =>
     },
     heroImageWrapper: {
       marginLeft: 18,
-      width: 150,
-      height: 150,
+      width: 160,
+      height: 160,
       alignItems: "center",
       justifyContent: "center",
       position: "relative",
     },
     heroImageBackdrop: {
       position: "absolute",
-      width: 120,
-      height: 120,
-      borderRadius: 60,
+      width: 130,
+      height: 130,
+      borderRadius: 65,
       backgroundColor: withOpacity(colors.white, 0.28),
       opacity: 0.9,
     },
     heroImage: {
-      width: 150,
-      height: 150,
+      width: 160,
+      height: 160,
+      borderRadius: 32,
+    },
+    heroIndicators: {
+      flexDirection: "row",
+      justifyContent: "center",
+      marginTop: 10,
+      gap: 8,
+    },
+    heroIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: withOpacity(colors.white, 0.25),
+    },
+    heroIndicatorActive: {
+      width: 20,
+      backgroundColor: colors.white,
     },
     statsScroll: {
       paddingHorizontal: 20,

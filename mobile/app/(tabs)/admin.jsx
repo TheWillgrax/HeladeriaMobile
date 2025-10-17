@@ -9,7 +9,7 @@ import {
   Alert,
   TextInput,
   Image,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
 // eslint-disable-next-line import/no-unresolved
@@ -18,6 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { orderApi, catalogApi, adminApi } from "@/services/api";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatCurrency, normaliseStatus, toNumber } from "@/utils/format";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as Print from "expo-print";
 
 const PRODUCT_FORM_INITIAL = {
   name: "",
@@ -159,8 +162,18 @@ export default function AdminScreen() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [dashboardError, setDashboardError] = useState(null);
   const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [exportingFormat, setExportingFormat] = useState(null);
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const chartWidth = useMemo(() => Math.max(Dimensions.get("window").width - 48, 320), []);
+  const { width: windowWidth } = useWindowDimensions();
+  const chartWidth = useMemo(
+    () => Math.max(Math.min(windowWidth - 48, 760), 320),
+    [windowWidth],
+  );
+  const pieChartSize = useMemo(
+    () => Math.max(Math.min(windowWidth - 80, 360), 220),
+    [windowWidth],
+  );
+  const isCompact = windowWidth < 720;
 
   const isAdmin = user?.role === "admin";
 
@@ -353,6 +366,171 @@ export default function AdminScreen() {
     if (orderStatusFilter === "all") return orders;
     return orders.filter((order) => normaliseStatus(order.status) === orderStatusFilter);
   }, [orderStatusFilter, orders]);
+
+  const metricPalettes = useMemo(
+    () => [
+      { background: hexToRgba(colors.primary, 0.12), border: hexToRgba(colors.primary, 0.35) },
+      { background: hexToRgba(colors.accent, 0.12), border: hexToRgba(colors.accent, 0.3) },
+      { background: hexToRgba(colors.success, 0.12), border: hexToRgba(colors.success, 0.3) },
+    ],
+    [colors.accent, colors.primary, colors.success],
+  );
+
+  const buildExportPayload = useCallback(() => {
+    if (!dashboard) return null;
+    const summary = dashboard.summary || {};
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      filters: dashboard.filters?.applied || {},
+      summary,
+      inventory: dashboard.inventory || {},
+      salesByMonth: dashboard.salesByMonth || [],
+      topProducts: dashboard.topProducts || [],
+      statusDistribution: orderStatusSummary.map((status) => ({
+        key: status.key,
+        label: status.label,
+        value: status.value,
+      })),
+      recentOrders: orders.slice(0, 20).map((order) => ({
+        id: order.id,
+        code: order.code || `#${order.id}`,
+        status: getStatusLabel(order.status),
+        total: toNumber(order?.totals?.total ?? order.total ?? 0),
+        createdAt: order.createdAt,
+      })),
+    };
+    return payload;
+  }, [dashboard, orderStatusSummary, orders]);
+
+  const handleExport = useCallback(
+    async (format) => {
+      if (!dashboard) {
+        Alert.alert("Sin datos", "Aplica un rango o periodo antes de exportar tus métricas.");
+        return;
+      }
+
+      const payload = buildExportPayload();
+      if (!payload) {
+        Alert.alert("Sin información", "Aún no hay información para generar un reporte.");
+        return;
+      }
+
+      const sharingAvailable = await Sharing.isAvailableAsync();
+      if (!sharingAvailable) {
+        Alert.alert(
+          "Acción no disponible",
+          "Tu dispositivo no permite compartir archivos. Intenta desde un dispositivo compatible.",
+        );
+        return;
+      }
+
+      try {
+        setExportingFormat(format);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+
+        if (format === "json") {
+          const jsonUri = `${FileSystem.cacheDirectory}dashboard-${timestamp}.json`;
+          await FileSystem.writeAsStringAsync(jsonUri, JSON.stringify(payload, null, 2), {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          await Sharing.shareAsync(jsonUri, {
+            mimeType: "application/json",
+            dialogTitle: "Compartir reporte en JSON",
+          });
+          return;
+        }
+
+        if (format === "excel") {
+          const csvRows = ["Indicador,Valor"];
+          formattedSummary.forEach((item) => {
+            csvRows.push(`${item.label.replace(/,/g, " ")},${String(item.value).replace(/,/g, " ")}`);
+          });
+          if (payload.salesByMonth.length) {
+            csvRows.push("", "Mes,Ingresos,Pedidos");
+            payload.salesByMonth.forEach((row) => {
+              csvRows.push(
+                `${formatMonthLabel(row.month)},${formatCurrency(row.revenue || 0)},${Number(row.orders || 0)}`,
+              );
+            });
+          }
+          const csvContent = csvRows.join("\n");
+          const csvUri = `${FileSystem.cacheDirectory}dashboard-${timestamp}.csv`;
+          await FileSystem.writeAsStringAsync(csvUri, csvContent, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          await Sharing.shareAsync(csvUri, {
+            mimeType: "text/csv",
+            dialogTitle: "Compartir reporte en Excel",
+          });
+          return;
+        }
+
+        if (format === "pdf") {
+          const summaryList = formattedSummary
+            .map((item) => `<li><strong>${item.label}:</strong> ${item.value}</li>`)
+            .join("");
+          const salesRows = payload.salesByMonth
+            .map(
+              (row) =>
+                `<tr><td>${formatMonthLabel(row.month)}</td><td>${formatCurrency(
+                  row.revenue || 0,
+                )}</td><td>${Number(row.orders || 0)}</td></tr>`,
+            )
+            .join("");
+          const productsList = payload.topProducts
+            .map(
+              (product) =>
+                `<li>${product.name} — ${product.unitsSold || 0} uds • ${formatCurrency(
+                  product.revenue || 0,
+                )}</li>`,
+            )
+            .join("");
+
+          const html = `<!DOCTYPE html>
+            <html lang="es">
+              <head>
+                <meta charSet="utf-8" />
+                <style>
+                  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #2f1f2b; padding: 32px; }
+                  h1 { color: #c2185b; margin-bottom: 0; }
+                  h2 { color: #512da8; margin-top: 32px; }
+                  ul { padding-left: 20px; }
+                  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                  th, td { border: 1px solid #e0d7e6; padding: 8px; text-align: left; font-size: 12px; }
+                  th { background-color: #f7f2fa; }
+                </style>
+              </head>
+              <body>
+                <h1>Reporte Heladería</h1>
+                <p>Generado: ${new Date(payload.generatedAt).toLocaleString("es-GT")}</p>
+                <h2>Resumen ejecutivo</h2>
+                <ul>${summaryList}</ul>
+                <h2>Ventas por mes</h2>
+                <table>
+                  <thead><tr><th>Mes</th><th>Ingresos</th><th>Pedidos</th></tr></thead>
+                  <tbody>${salesRows || "<tr><td colspan=\"3\">Sin datos</td></tr>"}</tbody>
+                </table>
+                <h2>Top productos</h2>
+                <ul>${productsList || "<li>Aún no hay productos destacados</li>"}</ul>
+              </body>
+            </html>`;
+
+          const { uri } = await Print.printToFileAsync({ html });
+          await Sharing.shareAsync(uri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Compartir reporte en PDF",
+          });
+        }
+      } catch (err) {
+        Alert.alert("Error al exportar", err.message || "No pudimos generar el reporte.");
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [buildExportPayload, dashboard, formattedSummary],
+  );
+
+  const isExporting = Boolean(exportingFormat);
 
   useEffect(() => {
     const load = async () => {
@@ -857,73 +1035,159 @@ export default function AdminScreen() {
             )}
           </View>
 
+          <View style={styles.exportCard}>
+            <Text style={styles.exportTitle}>Descargar reportes</Text>
+            <Text style={styles.exportSubtitle}>
+              Guarda este tablero en los formatos preferidos de tu equipo.
+            </Text>
+            <View style={styles.exportActions}>
+              <TouchableOpacity
+                style={[styles.exportButton, isExporting && styles.exportButtonDisabled]}
+                onPress={() => handleExport("excel")}
+                disabled={isExporting}
+              >
+                {exportingFormat === "excel" ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.exportButtonText}>Excel</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.exportButton,
+                  styles.exportButtonSecondary,
+                  isExporting && styles.exportButtonDisabled,
+                ]}
+                onPress={() => handleExport("pdf")}
+                disabled={isExporting}
+              >
+                {exportingFormat === "pdf" ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={[styles.exportButtonText, styles.exportButtonTextSecondary]}>PDF</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.exportButton,
+                  styles.exportButtonGhost,
+                  isExporting && styles.exportButtonDisabled,
+                ]}
+                onPress={() => handleExport("json")}
+                disabled={isExporting}
+              >
+                {exportingFormat === "json" ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={[styles.exportButtonText, styles.exportButtonTextGhost]}>JSON</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {dashboardError && <Text style={styles.error}>{dashboardError}</Text>}
 
           {dashboard ? (
             <>
               <View style={styles.metricsGrid}>
-                {formattedSummary.map((item) => (
-                  <View key={item.label} style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>{item.label}</Text>
-                    <Text style={styles.metricValue}>{item.value}</Text>
+                {formattedSummary.map((item, index) => {
+                  const palette = metricPalettes[index % metricPalettes.length];
+                  return (
+                    <View
+                      key={item.label}
+                      style={[
+                        styles.metricCard,
+                        isCompact && styles.metricCardFull,
+                        { backgroundColor: palette.background, borderColor: palette.border },
+                      ]}
+                    >
+                      <Text style={styles.metricLabel}>{item.label}</Text>
+                      <Text style={styles.metricValue}>{item.value}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={styles.chartSection}>
+                <View style={styles.chartCard}>
+                  <View style={styles.chartCardHeader}>
+                    <Text style={styles.sectionTitle}>Tendencia de ingresos</Text>
+                    <Text style={styles.chartTag}>Actualizado</Text>
                   </View>
-                ))}
+                  <Text style={styles.chartDescription}>
+                    Observa la evolución mensual de los ingresos netos según el filtro seleccionado.
+                  </Text>
+                  {lineChartData ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <LineChart
+                        data={lineChartData}
+                        width={chartContentWidth}
+                        height={CHART_HEIGHT}
+                        chartConfig={{ ...chartConfig, decimalPlaces: 2 }}
+                        bezier
+                        style={styles.chart}
+                        formatYLabel={(value) => formatCurrency(Number(value))}
+                      />
+                    </ScrollView>
+                  ) : (
+                    <Text style={styles.emptyText}>No hay datos suficientes para mostrar.</Text>
+                  )}
+                </View>
               </View>
 
               <View style={styles.chartSection}>
-                <Text style={styles.sectionTitle}>Tendencia de ingresos</Text>
-                {lineChartData ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <LineChart
-                      data={lineChartData}
-                      width={chartContentWidth}
-                      height={CHART_HEIGHT}
-                      chartConfig={{ ...chartConfig, decimalPlaces: 2 }}
-                      bezier
-                      style={styles.chart}
-                      formatYLabel={(value) => formatCurrency(Number(value))}
-                    />
-                  </ScrollView>
-                ) : (
-                  <Text style={styles.emptyText}>No hay datos suficientes para mostrar.</Text>
-                )}
+                <View style={styles.chartCard}>
+                  <View style={styles.chartCardHeader}>
+                    <Text style={styles.sectionTitle}>Pedidos por mes</Text>
+                    <Text style={styles.chartTag}>Volumen</Text>
+                  </View>
+                  <Text style={styles.chartDescription}>
+                    Identifica la demanda mensual y detecta picos de ventas para planificar inventario.
+                  </Text>
+                  {barChartData ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <BarChart
+                        data={barChartData}
+                        width={chartContentWidth}
+                        height={CHART_HEIGHT}
+                        chartConfig={chartConfig}
+                        style={styles.chart}
+                        fromZero
+                        showValuesOnTopOfBars
+                      />
+                    </ScrollView>
+                  ) : (
+                    <Text style={styles.emptyText}>No hay pedidos registrados en este periodo.</Text>
+                  )}
+                </View>
               </View>
 
               <View style={styles.chartSection}>
-                <Text style={styles.sectionTitle}>Pedidos por mes</Text>
-                {barChartData ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <BarChart
-                      data={barChartData}
-                      width={chartContentWidth}
-                      height={CHART_HEIGHT}
-                      chartConfig={chartConfig}
-                      style={styles.chart}
-                      fromZero
-                      showValuesOnTopOfBars
-                    />
-                  </ScrollView>
-                ) : (
-                  <Text style={styles.emptyText}>No hay pedidos registrados en este periodo.</Text>
-                )}
-              </View>
-
-              <View style={styles.chartSection}>
-                <Text style={styles.sectionTitle}>Distribución de estados</Text>
-                {pieChartData.length ? (
-                  <PieChart
-                    data={pieChartData}
-                    width={chartWidth}
-                    height={CHART_HEIGHT}
-                    accessor="population"
-                    chartConfig={chartConfig}
-                    backgroundColor="transparent"
-                    paddingLeft="0"
-                    absolute
-                  />
-                ) : (
-                  <Text style={styles.emptyText}>Aún no hay pedidos suficientes para graficar.</Text>
-                )}
+                <View style={styles.chartCard}>
+                  <View style={styles.chartCardHeader}>
+                    <Text style={styles.sectionTitle}>Distribución de estados</Text>
+                    <Text style={styles.chartTag}>Pedidos</Text>
+                  </View>
+                  <Text style={styles.chartDescription}>
+                    Revisa el balance entre pedidos pagados, pendientes y cancelados para actuar a tiempo.
+                  </Text>
+                  {pieChartData.length ? (
+                    <View style={styles.pieChartWrapper}>
+                      <PieChart
+                        data={pieChartData}
+                        width={pieChartSize}
+                        height={pieChartSize}
+                        accessor="population"
+                        chartConfig={chartConfig}
+                        backgroundColor="transparent"
+                        paddingLeft="0"
+                        absolute
+                      />
+                    </View>
+                  ) : (
+                    <Text style={styles.emptyText}>Aún no hay pedidos suficientes para graficar.</Text>
+                  )}
+                </View>
               </View>
 
               <View style={styles.section}>
@@ -1606,10 +1870,10 @@ const createStyles = (colors) => StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+    justifyContent: "space-between",
   },
   metricCard: {
     flexBasis: "48%",
-    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
     shadowColor: colors.shadow,
@@ -1619,6 +1883,9 @@ const createStyles = (colors) => StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  metricCardFull: {
+    flexBasis: "100%",
   },
   metricLabel: {
     color: colors.textLight,
@@ -1634,9 +1901,49 @@ const createStyles = (colors) => StyleSheet.create({
     marginTop: 16,
     gap: 12,
   },
+  chartCard: {
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primary, 0.15),
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  chartCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  chartTag: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+    backgroundColor: hexToRgba(colors.primary, 0.12),
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  chartDescription: {
+    color: colors.textLight,
+    fontSize: 13,
+    lineHeight: 20,
+  },
   chart: {
     borderRadius: 16,
     marginVertical: 8,
+  },
+  pieChartWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
   },
   card: {
     backgroundColor: colors.card,
@@ -1682,6 +1989,72 @@ const createStyles = (colors) => StyleSheet.create({
   inlineCardSubtitle: {
     color: colors.textLight,
     marginTop: 4,
+  },
+  exportCard: {
+    marginTop: 24,
+    backgroundColor: hexToRgba(colors.primary, 0.08),
+    borderRadius: 24,
+    padding: 20,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primary, 0.2),
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  exportTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  exportSubtitle: {
+    color: colors.textLight,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  exportActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  exportButton: {
+    flexGrow: 1,
+    minWidth: 90,
+    paddingVertical: 12,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  exportButtonSecondary: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: hexToRgba(colors.primary, 0.25),
+  },
+  exportButtonGhost: {
+    backgroundColor: colors.surface || colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  exportButtonText: {
+    fontWeight: "700",
+    color: colors.white,
+  },
+  exportButtonTextSecondary: {
+    color: colors.primary,
+  },
+  exportButtonTextGhost: {
+    color: colors.text,
+  },
+  exportButtonDisabled: {
+    opacity: 0.65,
   },
   statusSummaryRow: {
     flexDirection: "row",
