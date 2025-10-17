@@ -104,6 +104,44 @@ export const listUsers = async () => {
   );
 };
 
+export const updateUser = async (id, { name, email, phone, role, password }) => {
+  const normalizedName = name != null ? String(name).trim() : undefined;
+  const normalizedEmail = email != null ? String(email).trim().toLowerCase() : undefined;
+  const normalizedPhone = phone === null ? null : phone != null ? String(phone).trim() : undefined;
+  const normalizedRole = role != null ? (role === "admin" ? "admin" : "customer") : undefined;
+
+  const fields = [];
+  const params = { id };
+
+  if (normalizedName != null) {
+    fields.push("name = :name");
+    params.name = normalizedName;
+  }
+
+  if (normalizedEmail != null) {
+    fields.push("email = :email");
+    params.email = normalizedEmail;
+  }
+
+  if (normalizedPhone !== undefined) {
+    fields.push("phone = :phone");
+    params.phone = normalizedPhone;
+  }
+
+  if (normalizedRole != null) {
+    fields.push("role = :role");
+    params.role = normalizedRole;
+  }
+
+  if (fields.length > 0) {
+    await pool.execute(`UPDATE users SET ${fields.join(", ")} WHERE id = :id`, params);
+  }
+
+  if (password) {
+    await updatePasswordHash(id, password);
+  }
+};
+
 export const verifyUserPassword = async (user, password) => {
   if (!user?.password_hash) {
     return false;

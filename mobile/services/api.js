@@ -102,4 +102,6 @@ export const adminApi = {
   },
   users: (token) => request("/admin/users", { token }),
   createUser: (token, payload) => request("/admin/users", { method: "POST", token, body: payload }),
+  updateUser: (token, id, payload) =>
+    request(`/admin/users/${id}`, { method: "PUT", token, body: payload }),
 };

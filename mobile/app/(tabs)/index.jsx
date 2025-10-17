@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
 const heroImage = {
   uri: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=500&q=60",
 };
@@ -53,6 +55,10 @@ export default function HomeScreen() {
   const [error, setError] = useState(null);
   const heroAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(0)).current;
+  const heroShimmer = useRef(new Animated.Value(0)).current;
+  const statsAnimations = useRef([]);
+  const categoryAnimations = useRef([]);
+  const featuredAnimations = useRef([]);
 
   const heroGradientColors = useMemo(
     () => [withOpacity(colors.primary, 0.95), withOpacity(colors.accent, 0.9)],
@@ -99,12 +105,31 @@ export default function HomeScreen() {
       ]),
     );
 
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(heroShimmer, {
+          toValue: 1,
+          duration: 2600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(heroShimmer, {
+          toValue: 0,
+          duration: 2600,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
     loop.start();
+    shimmerLoop.start();
 
     return () => {
       loop.stop();
+      shimmerLoop.stop();
     };
-  }, [heroAnimation, pulseAnimation]);
+  }, [heroAnimation, pulseAnimation, heroShimmer]);
 
   const stats = useMemo(() => {
     if (!user) {
@@ -175,6 +200,57 @@ export default function HomeScreen() {
     inputRange: [0, 1],
     outputRange: [0, -12],
   });
+
+  useEffect(() => {
+    if (!stats.length) {
+      return;
+    }
+    statsAnimations.current = stats.map((_, index) => statsAnimations.current[index] || new Animated.Value(0));
+    statsAnimations.current.forEach((anim) => anim.setValue(0));
+    Animated.stagger(
+      120,
+      statsAnimations.current.map((anim) =>
+        Animated.spring(anim, { toValue: 1, friction: 8, tension: 65, useNativeDriver: true })
+      )
+    ).start();
+  }, [stats]);
+
+  useEffect(() => {
+    if (!categories.length) {
+      return;
+    }
+    categoryAnimations.current = categories.map(
+      (_, index) => categoryAnimations.current[index] || new Animated.Value(0)
+    );
+    categoryAnimations.current.forEach((anim) => anim.setValue(0));
+    Animated.stagger(
+      120,
+      categoryAnimations.current.map((anim) =>
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: 480,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        })
+      )
+    ).start();
+  }, [categories]);
+
+  useEffect(() => {
+    if (!featured.length) {
+      return;
+    }
+    featuredAnimations.current = featured.map(
+      (_, index) => featuredAnimations.current[index] || new Animated.Value(0)
+    );
+    featuredAnimations.current.forEach((anim) => anim.setValue(0));
+    Animated.stagger(
+      140,
+      featuredAnimations.current.map((anim) =>
+        Animated.spring(anim, { toValue: 1, friction: 9, tension: 70, useNativeDriver: true })
+      )
+    ).start();
+  }, [featured]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -254,6 +330,21 @@ export default function HomeScreen() {
               },
             ]}
           />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.heroShimmer,
+              {
+                opacity: heroShimmer.interpolate({
+                  inputRange: [0, 0.5, 1],
+                  outputRange: [0, 0.45, 0],
+                }),
+                transform: [
+                  { translateX: heroShimmer.interpolate({ inputRange: [0, 1], outputRange: [-160, 220] }) },
+                ],
+              },
+            ]}
+          />
           <View style={styles.heroText}>
             <View style={styles.heroChip}>
               <Text style={styles.heroChipText}>Nueva temporada</Text>
@@ -286,19 +377,39 @@ export default function HomeScreen() {
       </Animated.View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsScroll}>
-        {stats.map((stat, index) => (
-          <LinearGradient
-            key={stat.id}
-            colors={statGradients[index % statGradients.length]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statsCard}
-          >
-            <Text style={styles.statsValue}>{stat.value}</Text>
-            <Text style={styles.statsLabel}>{stat.label}</Text>
-            <Text style={styles.statsDescription}>{stat.description}</Text>
-          </LinearGradient>
-        ))}
+        {stats.map((stat, index) => {
+          const animatedValue = statsAnimations.current[index];
+          const translateY = animatedValue
+            ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [20, 0] })
+            : 0;
+          const scale = animatedValue
+            ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] })
+            : 1;
+
+          return (
+            <Animated.View
+              key={stat.id}
+              style={[
+                styles.statsCardWrapper,
+                {
+                  opacity: animatedValue || 1,
+                  transform: [{ translateY }, { scale }],
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={statGradients[index % statGradients.length]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.statsCard}
+              >
+                <Text style={styles.statsValue}>{stat.value}</Text>
+                <Text style={styles.statsLabel}>{stat.label}</Text>
+                <Text style={styles.statsDescription}>{stat.description}</Text>
+              </LinearGradient>
+            </Animated.View>
+          );
+        })}
       </ScrollView>
 
       {loading && (
@@ -318,32 +429,48 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            {categories.map((category, index) => (
-              <TouchableOpacity
-                key={category.id}
-                style={styles.categoryCardWrapper}
-                activeOpacity={0.9}
-                onPress={() =>
-                  router.push({ pathname: "/(tabs)/menu", params: { categoryId: category.id, categoryName: category.name } })
-                }
-              >
-                <LinearGradient
-                  colors={categoryGradients[index % categoryGradients.length]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.categoryCard}
+            {categories.map((category, index) => {
+              const animatedValue = categoryAnimations.current[index];
+              const translateY = animatedValue
+                ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [28, 0] })
+                : 0;
+              const scale = animatedValue
+                ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] })
+                : 1;
+
+              return (
+                <AnimatedTouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryCardWrapper,
+                    {
+                      opacity: animatedValue || 1,
+                      transform: [{ translateY }, { scale }],
+                    },
+                  ]}
+                  activeOpacity={0.92}
+                  onPress={() =>
+                    router.push({ pathname: "/(tabs)/menu", params: { categoryId: category.id, categoryName: category.name } })
+                  }
                 >
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                  <Text style={styles.categoryDescription} numberOfLines={2}>
-                    {category.description || "Una deliciosa selección para ti."}
-                  </Text>
-                  <View style={styles.categoryAction}>
-                    <Text style={styles.categoryActionText}>Descubrir</Text>
-                    <Text style={styles.categoryActionArrow}>→</Text>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
+                  <LinearGradient
+                    colors={categoryGradients[index % categoryGradients.length]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.categoryCard}
+                  >
+                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <Text style={styles.categoryDescription} numberOfLines={2}>
+                      {category.description || "Una deliciosa selección para ti."}
+                    </Text>
+                    <View style={styles.categoryAction}>
+                      <Text style={styles.categoryActionText}>Descubrir</Text>
+                      <Text style={styles.categoryActionArrow}>→</Text>
+                    </View>
+                  </LinearGradient>
+                </AnimatedTouchableOpacity>
+              );
+            })}
           </ScrollView>
 
           <View style={styles.sectionHeader}>
@@ -353,33 +480,52 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productRow}>
-            {featured.map((product, index) => (
-              <View key={product.id} style={styles.productCard}>
-                <View style={styles.productImageWrapper}>
-                  <Image source={getProductImage(product.image_url)} style={styles.productImage} />
-                  <View style={styles.productBadge}>
-                    <Text style={styles.productBadgeText}>#{index + 1} Top</Text>
+            {featured.map((product, index) => {
+              const animatedValue = featuredAnimations.current[index];
+              const translateY = animatedValue
+                ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [30, 0] })
+                : 0;
+              const scale = animatedValue
+                ? animatedValue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] })
+                : 1;
+
+              return (
+                <Animated.View
+                  key={product.id}
+                  style={[
+                    styles.productCard,
+                    {
+                      opacity: animatedValue || 1,
+                      transform: [{ translateY }, { scale }],
+                    },
+                  ]}
+                >
+                  <View style={styles.productImageWrapper}>
+                    <Image source={getProductImage(product.image_url)} style={styles.productImage} />
+                    <View style={styles.productBadge}>
+                      <Text style={styles.productBadgeText}>#{index + 1} Top</Text>
+                    </View>
                   </View>
-                </View>
-                <Text style={styles.productName}>{product.name}</Text>
-                <Text style={styles.productDescription} numberOfLines={2}>
-                  {product.description}
-                </Text>
-                <View style={styles.productFooter}>
-                  <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
-                  <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(product.id)}>
-                    <LinearGradient
-                      colors={[colors.accent, colors.primary]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.addButtonInner}
-                    >
-                      <Text style={styles.addButtonText}>Añadir</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+                  <Text style={styles.productName}>{product.name}</Text>
+                  <Text style={styles.productDescription} numberOfLines={2}>
+                    {product.description}
+                  </Text>
+                  <View style={styles.productFooter}>
+                    <Text style={styles.productPrice}>${Number(product.price).toFixed(2)}</Text>
+                    <TouchableOpacity style={styles.addButton} onPress={() => handleAddToCart(product.id)}>
+                      <LinearGradient
+                        colors={[colors.accent, colors.primary]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.addButtonInner}
+                      >
+                        <Text style={styles.addButtonText}>Añadir</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              );
+            })}
           </ScrollView>
 
           {user && (
@@ -450,6 +596,17 @@ const createStyles = (colors) =>
       ...StyleSheet.absoluteFillObject,
       borderRadius: 32,
       backgroundColor: withOpacity(colors.white, 0.25),
+    },
+    heroShimmer: {
+      position: "absolute",
+      top: -60,
+      right: -120,
+      width: 180,
+      height: 260,
+      borderRadius: 90,
+      backgroundColor: withOpacity(colors.white, 0.45),
+      transform: [{ rotate: "-18deg" }],
+      opacity: 0.3,
     },
     heroText: {
       flex: 1,
@@ -541,11 +698,13 @@ const createStyles = (colors) =>
       paddingHorizontal: 20,
       paddingVertical: 18,
     },
+    statsCardWrapper: {
+      marginRight: 16,
+    },
     statsCard: {
       width: 210,
       borderRadius: 24,
       padding: 18,
-      marginRight: 16,
       shadowColor: colors.shadow,
       shadowOpacity: 0.12,
       shadowRadius: 12,
