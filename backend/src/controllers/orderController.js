@@ -140,6 +140,9 @@ export const updateOrderStatusController = async (req, res) => {
     res.json({ orderId: Number(orderId), status, items });
   } catch (error) {
     console.error("Error actualizando estado de orden", error);
+    if (error.statusCode === 404) {
+      return res.status(404).json({ message: error.message || "Orden no encontrada" });
+    }
     res.status(500).json({ message: "Error interno del servidor" });
   }
 };

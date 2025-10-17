@@ -61,6 +61,7 @@ export const catalogApi = {
     const query = new URLSearchParams();
     if (params.categoryId) query.set("categoryId", String(params.categoryId));
     if (params.search) query.set("search", params.search);
+    if (params.includeInactive) query.set("includeInactive", "1");
     const path = `/products${query.toString() ? `?${query.toString()}` : ""}`;
     return request(path);
   },

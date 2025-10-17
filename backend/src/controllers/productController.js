@@ -138,7 +138,8 @@ export const listCategories = async (req, res) => {
 export const listProducts = async (req, res) => {
   try {
     const { categoryId, search } = req.query;
-    const products = await getProducts({ categoryId, search });
+    const includeInactive = normaliseActive(req.query.includeInactive, 0) === 1;
+    const products = await getProducts({ categoryId, search, includeInactive });
     res.json({ products });
   } catch (error) {
     console.error("Error obteniendo productos", error);
