@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   Alert,
   TextInput,
   Image,
+  Dimensions,
 } from "react-native";
+import { BarChart, LineChart, PieChart } from "react-native-chart-kit";
 // eslint-disable-next-line import/no-unresolved
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +49,93 @@ const TABS = [
   { key: "settings", label: "Configuración" },
 ];
 
+const DEFAULT_RANGE = "6";
+
+const RANGE_OPTIONS = [
+  { key: "3", label: "3 meses" },
+  { key: "6", label: "6 meses" },
+  { key: "12", label: "12 meses" },
+  { key: "24", label: "24 meses" },
+];
+
+const MONTHS = [
+  { value: 1, label: "Ene" },
+  { value: 2, label: "Feb" },
+  { value: 3, label: "Mar" },
+  { value: 4, label: "Abr" },
+  { value: 5, label: "May" },
+  { value: 6, label: "Jun" },
+  { value: 7, label: "Jul" },
+  { value: 8, label: "Ago" },
+  { value: 9, label: "Sep" },
+  { value: 10, label: "Oct" },
+  { value: 11, label: "Nov" },
+  { value: 12, label: "Dic" },
+];
+
+const ORDER_STATUS_FILTERS = [
+  { key: "all", label: "Todos" },
+  { key: "pending", label: "Pendientes" },
+  { key: "paid", label: "Pagados" },
+  { key: "cancelled", label: "Cancelados" },
+];
+
+const CHART_HEIGHT = 220;
+
+const getStatusLabel = (status) =>
+  ORDER_STATUS_FILTERS.find((item) => item.key === status)?.label || status;
+
+const formatCurrency = (value) => {
+  const number = Number(value || 0);
+  if (typeof Intl === "object" && typeof Intl.NumberFormat === "function") {
+    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(number);
+  }
+  return `$${number.toFixed(2)}`;
+};
+
+const formatPercentage = (value) => {
+  const number = Number(value || 0);
+  return `${number.toFixed(1)}%`;
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "Fecha desconocida";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Fecha desconocida";
+  return date.toLocaleString("es-MX", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const hexToRgba = (hex, alpha = 1) => {
+  if (!hex) return `rgba(0,0,0,${alpha})`;
+  const normalized = hex.replace("#", "");
+  const bigint = parseInt(normalized, 16);
+  if (Number.isNaN(bigint)) return `rgba(0,0,0,${alpha})`;
+  if (normalized.length === 3) {
+    const r = (bigint >> 8) & 0xf;
+    const g = (bigint >> 4) & 0xf;
+    const b = bigint & 0xf;
+    return `rgba(${(r << 4) | r}, ${(g << 4) | g}, ${(b << 4) | b}, ${alpha})`;
+  }
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const formatMonthLabel = (value) => {
+  if (!value || typeof value !== "string") return value;
+  const [year, month] = value.split("-");
+  const monthNumber = Number(month) || 0;
+  const label = MONTHS[monthNumber - 1]?.label || month;
+  return `${label} ${year}`;
+};
+
 export default function AdminScreen() {
   const { user, token } = useAuth();
   const { colors, theme, setTheme, toggleTheme } = useTheme();
@@ -68,28 +157,229 @@ export default function AdminScreen() {
   const [userFormVisible, setUserFormVisible] = useState(false);
   const [userForm, setUserForm] = useState(USER_FORM_INITIAL);
   const [creatingUser, setCreatingUser] = useState(false);
+  const [selectedRange, setSelectedRange] = useState(DEFAULT_RANGE);
+  const [selectedYear, setSelectedYear] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState(null);
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const chartWidth = useMemo(() => Math.max(Dimensions.get("window").width - 48, 320), []);
 
   const isAdmin = user?.role === "admin";
+
+  const buildDashboardParams = useCallback(({ range, year, month }) => {
+    const params = {};
+    if (year) {
+      params.year = year;
+      if (month) {
+        params.month = month;
+      }
+    } else if (range) {
+      params.range = range;
+    }
+    return params;
+  }, []);
+
+  const syncDashboardFilters = useCallback((filtersData) => {
+    if (!filtersData) return;
+    const applied = filtersData.applied || {};
+    setSelectedYear(applied.year ?? null);
+    setSelectedMonth(applied.month ?? null);
+    if (applied.rangeMonths != null) {
+      setSelectedRange(String(applied.rangeMonths));
+    } else if (applied.year != null) {
+      setSelectedRange(null);
+    } else {
+      setSelectedRange((prev) => prev ?? DEFAULT_RANGE);
+    }
+  }, []);
+
+  const applyDashboardFilters = useCallback(
+    async (nextFilters) => {
+      if (!token) return;
+      setDashboardError(null);
+      setDashboardLoading(true);
+      try {
+        const params = buildDashboardParams(nextFilters);
+        const response = await adminApi.dashboard(token, params);
+        setDashboard(response);
+        syncDashboardFilters(response.filters);
+      } catch (err) {
+        setDashboardError(err.message || "No pudimos actualizar las métricas");
+      } finally {
+        setDashboardLoading(false);
+      }
+    },
+    [token, buildDashboardParams, syncDashboardFilters]
+  );
+
+  const handleRangeChange = useCallback(
+    async (rangeValue) => {
+      if (!rangeValue) return;
+      if (rangeValue === selectedRange && !selectedYear) return;
+      setSelectedRange(rangeValue);
+      setSelectedYear(null);
+      setSelectedMonth(null);
+      await applyDashboardFilters({ range: rangeValue });
+    },
+    [applyDashboardFilters, selectedRange, selectedYear]
+  );
+
+  const handleYearChange = useCallback(
+    async (yearValue) => {
+      const nextYear = yearValue === selectedYear ? null : yearValue;
+      setSelectedYear(nextYear);
+      setSelectedMonth(null);
+      if (nextYear) {
+        setSelectedRange(null);
+        await applyDashboardFilters({ year: nextYear });
+      } else {
+        setSelectedRange(DEFAULT_RANGE);
+        await applyDashboardFilters({ range: DEFAULT_RANGE });
+      }
+    },
+    [applyDashboardFilters, selectedYear]
+  );
+
+  const handleMonthChange = useCallback(
+    async (monthValue) => {
+      if (!selectedYear) return;
+      const nextMonth = monthValue === selectedMonth ? null : monthValue;
+      setSelectedMonth(nextMonth);
+      await applyDashboardFilters({ year: selectedYear, month: nextMonth ?? undefined });
+    },
+    [applyDashboardFilters, selectedMonth, selectedYear]
+  );
+
+  const yearOptions = useMemo(() => dashboard?.filters?.availableYears || [], [dashboard]);
+  const rangeOptions = useMemo(() => {
+    const allowedRanges = dashboard?.filters?.availableRanges;
+    if (!allowedRanges || !allowedRanges.length) return RANGE_OPTIONS;
+    const allowedSet = new Set(allowedRanges.map((value) => String(value)));
+    const filtered = RANGE_OPTIONS.filter((option) => allowedSet.has(option.key));
+    return filtered.length ? filtered : RANGE_OPTIONS;
+  }, [dashboard]);
+
+  const monthOptions = useMemo(() => {
+    const allowedMonths = dashboard?.filters?.availableMonths;
+    if (!allowedMonths || !allowedMonths.length) return MONTHS;
+    const monthSet = new Set(allowedMonths);
+    const filtered = MONTHS.filter((month) => monthSet.has(month.value));
+    return filtered.length ? filtered : MONTHS;
+  }, [dashboard]);
+
+  const orderStatusSummary = useMemo(() => {
+    if (!dashboard) return [];
+    const summary = dashboard.summary || {};
+    return [
+      { key: "pending", label: "Pendientes", value: Number(summary.pendingOrders || 0), color: colors.accent },
+      { key: "paid", label: "Pagados", value: Number(summary.paidOrders || 0), color: colors.success },
+      { key: "cancelled", label: "Cancelados", value: Number(summary.cancelledOrders || 0), color: colors.error },
+    ];
+  }, [dashboard, colors.accent, colors.error, colors.success]);
+
+  const monthlyTrend = useMemo(() => {
+    if (!dashboard?.salesByMonth?.length) return null;
+    const labels = dashboard.salesByMonth.map((row) => formatMonthLabel(row.month));
+    const revenueValues = dashboard.salesByMonth.map((row) => Number(row.revenue || 0));
+    const orderValues = dashboard.salesByMonth.map((row) => Number(row.orders || 0));
+    return { labels, revenueValues, orderValues };
+  }, [dashboard]);
+
+  const lineChartData = useMemo(() => {
+    if (!monthlyTrend) return null;
+    return {
+      labels: monthlyTrend.labels,
+      datasets: [
+        {
+          data: monthlyTrend.revenueValues,
+          color: (opacity = 1) => hexToRgba(colors.primary, opacity),
+          strokeWidth: 2,
+        },
+      ],
+    };
+  }, [monthlyTrend, colors.primary]);
+
+  const barChartData = useMemo(() => {
+    if (!monthlyTrend) return null;
+    return {
+      labels: monthlyTrend.labels,
+      datasets: [
+        {
+          data: monthlyTrend.orderValues,
+        },
+      ],
+    };
+  }, [monthlyTrend]);
+
+  const pieChartData = useMemo(() => {
+    if (!orderStatusSummary.length) return [];
+    return orderStatusSummary
+      .filter((status) => status.value > 0)
+      .map((status) => ({
+        name: status.label,
+        population: status.value,
+        color: status.color,
+        legendFontColor: colors.text,
+        legendFontSize: 12,
+      }));
+  }, [colors.text, orderStatusSummary]);
+
+  const chartConfig = useMemo(
+    () => ({
+      backgroundGradientFrom: colors.card,
+      backgroundGradientTo: colors.card,
+      decimalPlaces: 0,
+      color: (opacity = 1) => hexToRgba(colors.primary, opacity),
+      labelColor: (opacity = 1) => hexToRgba(colors.text, opacity),
+      propsForDots: {
+        r: "4",
+        strokeWidth: "2",
+        stroke: colors.accent,
+      },
+      propsForBackgroundLines: {
+        stroke: hexToRgba(colors.border, 0.4),
+      },
+      fillShadowGradientFrom: hexToRgba(colors.primary, 0.35),
+      fillShadowGradientTo: hexToRgba(colors.primary, 0.05),
+      fillShadowGradientOpacity: 1,
+    }),
+    [colors]
+  );
+
+  const chartContentWidth = useMemo(() => {
+    if (!monthlyTrend) return chartWidth;
+    return Math.max(chartWidth, monthlyTrend.labels.length * 60);
+  }, [chartWidth, monthlyTrend]);
+
+  const filteredOrders = useMemo(() => {
+    if (orderStatusFilter === "all") return orders;
+    return orders.filter((order) => order.status === orderStatusFilter);
+  }, [orderStatusFilter, orders]);
 
   useEffect(() => {
     const load = async () => {
       if (!token || !isAdmin) return;
       setLoading(true);
       setError(null);
+      setDashboardError(null);
+      setDashboardLoading(true);
       try {
+        const dashboardParams = buildDashboardParams({ range: DEFAULT_RANGE });
         const [ordersResponse, productsResponse, categoriesResponse, dashboardResponse, usersResponse] =
           await Promise.all([
             orderApi.allOrders(token),
             catalogApi.products(),
             catalogApi.categories(),
-            adminApi.dashboard(token),
+            adminApi.dashboard(token, dashboardParams),
             adminApi.users(token),
           ]);
         setOrders(ordersResponse.orders || []);
         setProducts(productsResponse.products || []);
         setCategories(categoriesResponse.categories || []);
         setDashboard(dashboardResponse);
+        syncDashboardFilters(dashboardResponse?.filters);
         setUsersList(usersResponse.users || []);
         setProductForm((prev) => ({
           ...prev,
@@ -99,23 +389,29 @@ export default function AdminScreen() {
         }));
       } catch (err) {
         setError(err.message || "No pudimos obtener la información administrativa");
+        setDashboardError(err.message || "No pudimos obtener las métricas");
       } finally {
         setLoading(false);
+        setDashboardLoading(false);
       }
     };
 
     load();
-  }, [token, isAdmin]);
+  }, [token, isAdmin, buildDashboardParams, syncDashboardFilters]);
 
   const refreshProducts = async () => {
     const response = await catalogApi.products();
     setProducts(response.products || []);
   };
 
-  const refreshDashboard = async () => {
-    const response = await adminApi.dashboard(token);
-    setDashboard(response);
-  };
+  const refreshDashboard = useCallback(async () => {
+    const params = {
+      range: selectedYear ? null : selectedRange || DEFAULT_RANGE,
+      year: selectedYear,
+      month: selectedMonth ?? undefined,
+    };
+    await applyDashboardFilters(params);
+  }, [applyDashboardFilters, selectedMonth, selectedRange, selectedYear]);
 
   const refreshUsers = async () => {
     const response = await adminApi.users(token);
@@ -383,14 +679,21 @@ export default function AdminScreen() {
 
   const formattedSummary = useMemo(() => {
     if (!dashboard) return [];
-    return [
-      { label: "Ventas totales", value: `$${dashboard.summary.totalRevenue.toFixed(2)}` },
-      { label: "Pedidos", value: String(dashboard.summary.totalOrders) },
-      { label: "Pagados", value: String(dashboard.summary.paidOrders) },
-      { label: "Pendientes", value: String(dashboard.summary.pendingOrders) },
-      { label: "Cancelados", value: String(dashboard.summary.cancelledOrders) },
-      { label: "Productos activos", value: String(dashboard.inventory.activeProducts) },
+    const summary = dashboard.summary || {};
+    const inventory = dashboard.inventory || {};
+    const metrics = [
+      { label: "Ventas totales", value: formatCurrency(summary.totalRevenue) },
+      { label: "Ticket promedio", value: formatCurrency(summary.averageOrderValue) },
+      { label: "Pedidos totales", value: String(summary.totalOrders || 0) },
+      { label: "Tasa de pago", value: formatPercentage(summary.conversionRate) },
+      { label: "Clientes únicos", value: String(summary.uniqueCustomers || 0) },
+      {
+        label: "Productos activos",
+        value: `${inventory.activeProducts ?? 0}/${inventory.totalProducts ?? 0}`,
+      },
+      { label: "Stock crítico", value: String(inventory.lowStockProducts || 0) },
     ];
+    return metrics;
   }, [dashboard]);
 
   if (!isAdmin) {
@@ -433,6 +736,100 @@ export default function AdminScreen() {
 
       {activeTab === "dashboard" && (
         <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Resumen ejecutivo</Text>
+            {dashboardLoading && <ActivityIndicator color={colors.primary} />}
+          </View>
+          <Text style={styles.sectionDescription}>
+            Analiza el rendimiento de ventas, pedidos y clientes aplicando los filtros que necesites.
+          </Text>
+
+          <View style={styles.filtersCard}>
+            <Text style={styles.filterHeading}>Filtros</Text>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Rango</Text>
+              <View style={styles.filterChipRow}>
+                {rangeOptions.map((option) => {
+                  const active = !selectedYear && selectedRange === option.key;
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[styles.filterChip, active && styles.filterChipActive]}
+                      onPress={() => handleRangeChange(option.key)}
+                    >
+                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterLabel}>Año</Text>
+              <View style={styles.filterChipRow}>
+                <TouchableOpacity
+                  style={[styles.filterChip, !selectedYear && styles.filterChipActive]}
+                  onPress={() => {
+                    if (selectedYear) {
+                      handleYearChange(selectedYear);
+                    }
+                  }}
+                >
+                  <Text
+                    style={[styles.filterChipText, !selectedYear && styles.filterChipTextActive]}
+                  >
+                    Todos
+                  </Text>
+                </TouchableOpacity>
+                {yearOptions.map((year) => {
+                  const active = selectedYear === year;
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      style={[styles.filterChip, active && styles.filterChipActive]}
+                      onPress={() => handleYearChange(year)}
+                    >
+                      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                        {year}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {selectedYear && (
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterLabel}>Mes</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.filterChipRowHorizontal}>
+                    {monthOptions.map((month) => {
+                      const active = selectedMonth === month.value;
+                      return (
+                        <TouchableOpacity
+                          key={month.value}
+                          style={[styles.filterChip, active && styles.filterChipActive]}
+                          onPress={() => handleMonthChange(month.value)}
+                        >
+                          <Text
+                            style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                          >
+                            {month.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          {dashboardError && <Text style={styles.error}>{dashboardError}</Text>}
+
           {dashboard ? (
             <>
               <View style={styles.metricsGrid}>
@@ -444,19 +841,59 @@ export default function AdminScreen() {
                 ))}
               </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Ventas recientes</Text>
-                {dashboard.salesByMonth.length === 0 ? (
-                  <Text style={styles.emptyText}>Sin datos todavía.</Text>
+              <View style={styles.chartSection}>
+                <Text style={styles.sectionTitle}>Tendencia de ingresos</Text>
+                {lineChartData ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <LineChart
+                      data={lineChartData}
+                      width={chartContentWidth}
+                      height={CHART_HEIGHT}
+                      chartConfig={{ ...chartConfig, decimalPlaces: 2 }}
+                      bezier
+                      style={styles.chart}
+                      formatYLabel={(value) => formatCurrency(Number(value))}
+                    />
+                  </ScrollView>
                 ) : (
-                  dashboard.salesByMonth.map((row) => (
-                    <View key={row.month} style={styles.inlineCard}>
-                      <Text style={styles.inlineCardTitle}>{row.month}</Text>
-                      <Text style={styles.inlineCardSubtitle}>
-                        {row.orders} pedidos • ${row.revenue.toFixed(2)}
-                      </Text>
-                    </View>
-                  ))
+                  <Text style={styles.emptyText}>No hay datos suficientes para mostrar.</Text>
+                )}
+              </View>
+
+              <View style={styles.chartSection}>
+                <Text style={styles.sectionTitle}>Pedidos por mes</Text>
+                {barChartData ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <BarChart
+                      data={barChartData}
+                      width={chartContentWidth}
+                      height={CHART_HEIGHT}
+                      chartConfig={chartConfig}
+                      style={styles.chart}
+                      fromZero
+                      showValuesOnTopOfBars
+                    />
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.emptyText}>No hay pedidos registrados en este periodo.</Text>
+                )}
+              </View>
+
+              <View style={styles.chartSection}>
+                <Text style={styles.sectionTitle}>Distribución de estados</Text>
+                {pieChartData.length ? (
+                  <PieChart
+                    data={pieChartData}
+                    width={chartWidth}
+                    height={CHART_HEIGHT}
+                    accessor="population"
+                    chartConfig={chartConfig}
+                    backgroundColor="transparent"
+                    paddingLeft="0"
+                    absolute
+                  />
+                ) : (
+                  <Text style={styles.emptyText}>Aún no hay pedidos suficientes para graficar.</Text>
                 )}
               </View>
 
@@ -469,7 +906,7 @@ export default function AdminScreen() {
                     <View key={product.id} style={styles.inlineCard}>
                       <Text style={styles.inlineCardTitle}>{product.name}</Text>
                       <Text style={styles.inlineCardSubtitle}>
-                        {product.unitsSold} vendidos • ${product.revenue.toFixed(2)}
+                        {product.unitsSold} vendidos • {formatCurrency(product.revenue)}
                       </Text>
                     </View>
                   ))
@@ -485,43 +922,92 @@ export default function AdminScreen() {
               <Text style={styles.sectionTitle}>Pedidos recientes</Text>
               {updating && <ActivityIndicator color={colors.primary} />}
             </View>
-            {orders.length === 0 ? (
-              <Text style={styles.emptyText}>Aún no hay pedidos registrados.</Text>
-            ) : (
-              orders.map((order) => (
-                <View key={order.id} style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>Orden #{order.id}</Text>
-                    <Text style={[styles.badge, styles[`status${order.status}`] || styles.badge]}>
-                      {order.status}
-                    </Text>
-                  </View>
-                  <Text style={styles.cardSubtitle}>
-                    Cliente: {order.customerName || "Invitado"} - Total ${Number(order.total).toFixed(2)}
-                  </Text>
-                  <View style={styles.orderItems}>
-                    {order.items?.map((item) => (
-                      <Text key={item.id} style={styles.orderItem}>
-                        {item.quantity}x {item.name}
-                      </Text>
-                    ))}
-                  </View>
-                  <View style={styles.actionsRow}>
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => handleStatusChange(order.id, "paid")}
-                    >
-                      <Text style={styles.actionButtonText}>Marcar pagado</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.dangerButton]}
-                      onPress={() => handleStatusChange(order.id, "cancelled")}
-                    >
-                      <Text style={[styles.actionButtonText, styles.dangerButtonText]}>Cancelar</Text>
-                    </TouchableOpacity>
-                  </View>
+
+            <View style={styles.statusSummaryRow}>
+              {orderStatusSummary.map((status) => (
+                <View key={status.key} style={[styles.statusSummaryCard, { borderColor: status.color }]}> 
+                  <Text style={[styles.statusSummaryValue, { color: status.color }]}>{status.value}</Text>
+                  <Text style={styles.statusSummaryLabel}>{status.label}</Text>
                 </View>
-              ))
+              ))}
+            </View>
+
+            <View style={styles.filterChipRow}>
+              {ORDER_STATUS_FILTERS.map((option) => {
+                const active = orderStatusFilter === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.filterChip, active && styles.filterChipActive]}
+                    onPress={() => setOrderStatusFilter(option.key)}
+                  >
+                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {filteredOrders.length === 0 ? (
+              <Text style={styles.emptyText}>No hay pedidos con los filtros seleccionados.</Text>
+            ) : (
+              filteredOrders.map((order) => {
+                const orderTotal = order?.totals?.total ?? order.total ?? 0;
+                const canMarkPaid = order.status !== "paid" && order.status !== "cancelled";
+                const canCancel = order.status === "pending";
+                return (
+                  <View key={order.id} style={styles.card}>
+                    <View style={styles.cardHeader}>
+                      <View>
+                        <Text style={styles.cardTitle}>Orden #{order.id}</Text>
+                        <Text style={styles.cardSubtitle}>{formatDateTime(order.createdAt)}</Text>
+                      </View>
+                      <Text style={[styles.badge, styles[`status${order.status}`] || styles.badge]}>
+                        {getStatusLabel(order.status)}
+                      </Text>
+                    </View>
+                    <Text style={styles.cardSubtitle}>
+                      Cliente: {order.customerName || "Invitado"} • Total {formatCurrency(orderTotal)}
+                    </Text>
+                    <View style={styles.orderItems}>
+                      {order.items?.map((item) => (
+                        <Text key={item.id} style={styles.orderItem}>
+                          {item.quantity}x {item.name}
+                        </Text>
+                      ))}
+                    </View>
+                    <View style={styles.actionsRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, !canMarkPaid && styles.actionButtonDisabled]}
+                        onPress={() => handleStatusChange(order.id, "paid")}
+                        disabled={!canMarkPaid}
+                      >
+                        <Text
+                          style={[styles.actionButtonText, !canMarkPaid && styles.actionButtonTextDisabled]}
+                        >
+                          Marcar pagado
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.dangerButton, !canCancel && styles.actionButtonDisabled]}
+                        onPress={() => handleStatusChange(order.id, "cancelled")}
+                        disabled={!canCancel}
+                      >
+                        <Text
+                          style={[
+                            styles.actionButtonText,
+                            styles.dangerButtonText,
+                            !canCancel && styles.actionButtonTextDisabled,
+                          ]}
+                        >
+                          Cancelar
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
             )}
           </View>
         </View>
@@ -997,6 +1483,60 @@ const createStyles = (colors) => StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
   },
+  filtersCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  filterHeading: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  filterGroup: {
+    gap: 8,
+  },
+  filterLabel: {
+    color: colors.textLight,
+    fontSize: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  filterChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  filterChipRowHorizontal: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.textLight,
+    fontWeight: "600",
+  },
+  filterChipTextActive: {
+    color: colors.white,
+  },
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1022,6 +1562,14 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.text,
     fontSize: 20,
     fontWeight: "700",
+  },
+  chartSection: {
+    marginTop: 16,
+    gap: 12,
+  },
+  chart: {
+    borderRadius: 16,
+    marginVertical: 8,
   },
   card: {
     backgroundColor: colors.card,
@@ -1066,6 +1614,31 @@ const createStyles = (colors) => StyleSheet.create({
     color: colors.textLight,
     marginTop: 4,
   },
+  statusSummaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 8,
+  },
+  statusSummaryCard: {
+    flexBasis: "30%",
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    backgroundColor: colors.card,
+  },
+  statusSummaryValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  statusSummaryLabel: {
+    color: colors.textLight,
+    fontSize: 12,
+    textTransform: "uppercase",
+    marginTop: 4,
+    letterSpacing: 0.4,
+  },
   orderItems: {
     gap: 4,
   },
@@ -1087,6 +1660,12 @@ const createStyles = (colors) => StyleSheet.create({
   actionButtonText: {
     color: colors.white,
     fontWeight: "700",
+  },
+  actionButtonDisabled: {
+    backgroundColor: colors.border,
+  },
+  actionButtonTextDisabled: {
+    color: colors.textLight,
   },
   primaryButton: {
     backgroundColor: colors.primary,

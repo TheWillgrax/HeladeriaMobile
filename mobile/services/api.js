@@ -89,7 +89,16 @@ export const orderApi = {
 };
 
 export const adminApi = {
-  dashboard: (token) => request("/admin/dashboard", { token }),
+  dashboard: (token, params = {}) => {
+    const query = new URLSearchParams();
+    if (params.year) query.set("year", String(params.year));
+    if (params.month) query.set("month", String(params.month));
+    if (params.range) query.set("range", String(params.range));
+    if (params.from) query.set("from", String(params.from));
+    if (params.to) query.set("to", String(params.to));
+    const path = `/admin/dashboard${query.toString() ? `?${query.toString()}` : ""}`;
+    return request(path, { token });
+  },
   users: (token) => request("/admin/users", { token }),
   createUser: (token, payload) => request("/admin/users", { method: "POST", token, body: payload }),
 };
