@@ -17,7 +17,8 @@ const updatePasswordHash = async (userId, password) => {
 };
 
 export const findUserByEmail = async (email) => {
-  const users = await query("SELECT * FROM users WHERE email = :email", { email });
+  const normalisedEmail = typeof email === "string" ? email.trim().toLowerCase() : email;
+  const users = await query("SELECT * FROM users WHERE email = :email", { email: normalisedEmail });
   return users[0];
 };
 
@@ -28,10 +29,13 @@ export const findUserById = async (id) => {
 
 export const createUser = async ({ name, email, password, phone, role = "customer" }) => {
   const passwordHash = await hashPassword(password);
-  const normalizedPhone = phone ?? null;
+  const normalizedName = String(name).trim();
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const normalizedPhone = phone ? String(phone).trim() : null;
+  const normalizedRole = role === "admin" ? "admin" : "customer";
   const [result] = await pool.execute(
     "INSERT INTO users (name, email, password_hash, phone, role) VALUES (:name, :email, :passwordHash, :phone, :role)",
-    { name, email, passwordHash, phone: normalizedPhone, role }
+    { name: normalizedName, email: normalizedEmail, passwordHash, phone: normalizedPhone, role: normalizedRole }
   );
   return result.insertId;
 };

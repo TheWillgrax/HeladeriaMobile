@@ -23,6 +23,19 @@ const PRODUCT_FORM_INITIAL = {
   active: true,
 };
 
+const USER_FORM_INITIAL = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  role: "customer",
+};
+
+const USER_ROLES = [
+  { key: "customer", label: "Cliente" },
+  { key: "admin", label: "Administrador" },
+];
+
 const TABS = [
   { key: "dashboard", label: "Resumen" },
   { key: "products", label: "Productos" },
@@ -45,6 +58,9 @@ export default function AdminScreen() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
+  const [userFormVisible, setUserFormVisible] = useState(false);
+  const [userForm, setUserForm] = useState(USER_FORM_INITIAL);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   const isAdmin = user?.role === "admin";
 
@@ -96,6 +112,67 @@ export default function AdminScreen() {
   const refreshUsers = async () => {
     const response = await adminApi.users(token);
     setUsersList(response.users || []);
+  };
+
+  const openCreateUserForm = () => {
+    setUserForm(USER_FORM_INITIAL);
+    setUserFormVisible(true);
+  };
+
+  const closeUserForm = () => {
+    setUserFormVisible(false);
+    setUserForm(USER_FORM_INITIAL);
+  };
+
+  const handleUserFormChange = (field, value) => {
+    setUserForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmitUser = async () => {
+    const name = userForm.name.trim();
+    const email = userForm.email.trim();
+    const phone = userForm.phone.trim();
+
+    if (!name) {
+      Alert.alert("Falta información", "El nombre del usuario es obligatorio");
+      return;
+    }
+
+    if (!email) {
+      Alert.alert("Falta información", "El correo electrónico es obligatorio");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Correo inválido", "Ingresa un correo electrónico válido");
+      return;
+    }
+
+    if (!userForm.password || userForm.password.length < 6) {
+      Alert.alert("Contraseña inválida", "La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    const payload = {
+      name,
+      email: email.toLowerCase(),
+      password: userForm.password,
+      role: userForm.role,
+      phone: phone ? phone : null,
+    };
+
+    try {
+      setCreatingUser(true);
+      await adminApi.createUser(token, payload);
+      await refreshUsers();
+      Alert.alert("Usuario creado", "El usuario se creó correctamente");
+      closeUserForm();
+    } catch (err) {
+      Alert.alert("Error creando usuario", err.message || "Intenta nuevamente");
+    } finally {
+      setCreatingUser(false);
+    }
   };
 
   const handleStatusChange = async (orderId, status) => {
@@ -554,7 +631,106 @@ export default function AdminScreen() {
 
       {activeTab === "users" && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Usuarios registrados</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Usuarios registrados</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={openCreateUserForm}>
+              <Text style={styles.primaryButtonText}>Nuevo usuario</Text>
+            </TouchableOpacity>
+          </View>
+
+          {userFormVisible && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Crear usuario</Text>
+
+              <View style={styles.formRow}>
+                <Text style={styles.inputLabel}>Nombre</Text>
+                <TextInput
+                  value={userForm.name}
+                  onChangeText={(text) => handleUserFormChange("name", text)}
+                  style={styles.input}
+                  placeholder="Nombre completo"
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <Text style={styles.inputLabel}>Correo electrónico</Text>
+                <TextInput
+                  value={userForm.email}
+                  onChangeText={(text) => handleUserFormChange("email", text)}
+                  style={styles.input}
+                  placeholder="usuario@ejemplo.com"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <Text style={styles.inputLabel}>Teléfono (opcional)</Text>
+                <TextInput
+                  value={userForm.phone}
+                  onChangeText={(text) => handleUserFormChange("phone", text)}
+                  style={styles.input}
+                  placeholder="5512345678"
+                  keyboardType="phone-pad"
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <Text style={styles.inputLabel}>Contraseña</Text>
+                <TextInput
+                  value={userForm.password}
+                  onChangeText={(text) => handleUserFormChange("password", text)}
+                  style={styles.input}
+                  placeholder="Mínimo 6 caracteres"
+                  secureTextEntry
+                  placeholderTextColor={COLORS.textLight}
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <Text style={styles.inputLabel}>Rol</Text>
+                <View style={styles.chipsContainer}>
+                  {USER_ROLES.map((role) => {
+                    const active = userForm.role === role.key;
+                    return (
+                      <TouchableOpacity
+                        key={role.key}
+                        style={[styles.chip, active && styles.chipActive]}
+                        onPress={() => handleUserFormChange("role", role.key)}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>{role.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.formActions}>
+                <TouchableOpacity
+                  style={[styles.primaryButton, styles.formButton]}
+                  onPress={handleSubmitUser}
+                  disabled={creatingUser}
+                >
+                  {creatingUser ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Crear usuario</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, styles.formButton]}
+                  onPress={closeUserForm}
+                  disabled={creatingUser}
+                >
+                  <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           {usersList.length === 0 ? (
             <Text style={styles.emptyText}>Todavía no hay usuarios registrados.</Text>
           ) : (
