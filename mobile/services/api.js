@@ -91,4 +91,5 @@ export const orderApi = {
 export const adminApi = {
   dashboard: (token) => request("/admin/dashboard", { token }),
   users: (token) => request("/admin/users", { token }),
+  createUser: (token, payload) => request("/admin/users", { method: "POST", token, body: payload }),
 };
