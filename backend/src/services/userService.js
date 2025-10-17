@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { pool, query } from "../config/db.js";
 
 const BCRYPT_ROUNDS = 10;
@@ -7,6 +8,16 @@ const hashPassword = (password) => bcrypt.hash(password, BCRYPT_ROUNDS);
 
 const isBcryptHash = (value) =>
   typeof value === "string" && /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value);
+
+const isHexHashOfLength = (value, length) =>
+  typeof value === "string" && value.length === length && /^[a-f0-9]+$/i.test(value);
+
+const isMd5Hash = (value) => isHexHashOfLength(value, 32);
+
+const isSha1Hash = (value) => isHexHashOfLength(value, 40);
+
+const createHash = (algorithm, value) =>
+  crypto.createHash(algorithm).update(value, "utf8").digest("hex");
 
 const updatePasswordHash = async (userId, password) => {
   const passwordHash = await hashPassword(password);
@@ -59,6 +70,22 @@ export const verifyUserPassword = async (user, password) => {
     } catch (error) {
       return false;
     }
+  }
+
+  if (isMd5Hash(user.password_hash)) {
+    if (createHash("md5", password) === user.password_hash.toLowerCase()) {
+      await updatePasswordHash(user.id, password);
+      return true;
+    }
+    return false;
+  }
+
+  if (isSha1Hash(user.password_hash)) {
+    if (createHash("sha1", password) === user.password_hash.toLowerCase()) {
+      await updatePasswordHash(user.id, password);
+      return true;
+    }
+    return false;
   }
 
   if (user.password_hash === password) {
