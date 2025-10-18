@@ -28,7 +28,16 @@ export const checkout = async (req, res) => {
       return res.status(400).json({ message: "El carrito está vacío" });
     }
 
-    const orderId = await createOrderFromCart({ userId: req.user.id, cartId: cart.id, items });
+    const customerName = req.body?.customerName || req.user?.name || null;
+    const customerEmail = req.body?.customerEmail || req.user?.email || null;
+
+    const orderId = await createOrderFromCart({
+      userId: req.user.id,
+      cartId: cart.id,
+      items,
+      customerName,
+      customerEmail,
+    });
     const orderItems = await getOrderItems(orderId);
     const totals = calculateTotals(orderItems);
 

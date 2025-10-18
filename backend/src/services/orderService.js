@@ -1,6 +1,12 @@
 import { pool, query } from "../config/db.js";
 
-export const createOrderFromCart = async ({ userId, cartId, items }) => {
+export const createOrderFromCart = async ({
+  userId,
+  cartId,
+  items,
+  customerName,
+  customerEmail,
+}) => {
   const connection = await pool.getConnection();
 
   try {
@@ -9,8 +15,15 @@ export const createOrderFromCart = async ({ userId, cartId, items }) => {
     const total = items.reduce((acc, item) => acc + item.quantity * Number(item.unitPrice), 0);
 
     const [orderResult] = await connection.execute(
-      "INSERT INTO orders (user_id, cart_id, total, status) VALUES (:userId, :cartId, :total, 'pending')",
-      { userId, cartId, total }
+      `INSERT INTO orders (user_id, cart_id, total, status, customer_name, customer_email)
+       VALUES (:userId, :cartId, :total, 'pending', :customerName, :customerEmail)`,
+      {
+        userId,
+        cartId,
+        total,
+        customerName: customerName ?? null,
+        customerEmail: customerEmail ?? null,
+      }
     );
 
     const orderId = orderResult.insertId;
@@ -42,8 +55,14 @@ export const createOrderFromCart = async ({ userId, cartId, items }) => {
 
 export const getOrdersForUser = async (userId) => {
   return query(
-    `SELECT o.id, o.total, o.status, o.created_at AS createdAt
+    `SELECT o.id,
+            o.total,
+            o.status,
+            o.created_at AS createdAt,
+            COALESCE(o.customer_name, u.name) AS customerName,
+            COALESCE(o.customer_email, u.email) AS customerEmail
      FROM orders o
+     LEFT JOIN users u ON o.user_id = u.id
      WHERE o.user_id = :userId
      ORDER BY o.created_at DESC`,
     { userId }
@@ -63,8 +82,13 @@ export const getOrderItems = async (orderId) => {
 
 export const getOrderById = async (orderId) => {
   const rows = await query(
-    `SELECT o.id, o.total, o.status, o.created_at AS createdAt, o.user_id AS userId,
-            u.name AS customerName, u.email AS customerEmail
+    `SELECT o.id,
+            o.total,
+            o.status,
+            o.created_at AS createdAt,
+            o.user_id AS userId,
+            COALESCE(o.customer_name, u.name) AS customerName,
+            COALESCE(o.customer_email, u.email) AS customerEmail
      FROM orders o
      LEFT JOIN users u ON o.user_id = u.id
      WHERE o.id = :orderId`,
@@ -76,7 +100,12 @@ export const getOrderById = async (orderId) => {
 
 export const getAllOrders = async () => {
   return query(
-    `SELECT o.id, o.total, o.status, o.created_at AS createdAt, u.name AS customerName, u.email
+    `SELECT o.id,
+            o.total,
+            o.status,
+            o.created_at AS createdAt,
+            COALESCE(o.customer_name, u.name) AS customerName,
+            COALESCE(o.customer_email, u.email) AS customerEmail
      FROM orders o
      LEFT JOIN users u ON o.user_id = u.id
      ORDER BY o.created_at DESC`
